@@ -1,0 +1,103 @@
+{
+    "analysis_stage" : "KratosMultiphysics.StructuralMechanicsApplication.StructuralAnalysis",
+    "problem_data"     : {
+        "problem_name"  : "beam_nonlinear_cantileaver_fom_coarse",
+        "parallel_type" : "OpenMP",
+        "echo_level"    : 1,
+        "start_time"    : 0.0,
+        "end_time"      : 100.0
+    },
+    "solver_settings"  : {
+        "solver_type"                     : "Static",
+        "model_part_name"                 : "Structure",
+        "domain_size"                     : 2,
+        "echo_level"                      : 0,
+        "analysis_type"                   : "non_linear",
+        "model_import_settings"           : {
+            "input_type"     : "mdpa",
+            "input_filename" : "beam_nonlinear_cantileaver_fom_coarse"
+        },
+        "material_import_settings"        : {
+            "materials_filename" : "StructuralMaterials.json"
+        },
+        "time_stepping"                   : {
+            "time_step" : 1
+        },
+        "solving_strategy" : "Galerkin",
+        "rom_settings": {
+            "nodal_unknowns": ["DISPLACEMENT_X", "DISPLACEMENT_Y"],
+            "number_of_rom_dofs": 2
+        },
+        "line_search"                     : false,
+        "convergence_criterion"           : "displacement_criterion",
+        "displacement_relative_tolerance" : 1e-6,
+        "displacement_absolute_tolerance" : 1e-8,
+        "residual_relative_tolerance"     : 0.0001,
+        "residual_absolute_tolerance"     : 1e-9,
+        "max_iteration"                   : 10,
+        "rotation_dofs"                   : false,
+        "volumetric_strain_dofs"          : false
+    },
+    "processes"        : {
+        "constraints_process_list" : [{
+            "python_module" : "assign_vector_variable_process",
+            "kratos_module" : "KratosMultiphysics",
+            "process_name"  : "AssignVectorVariableProcess",
+            "Parameters"    : {
+                "model_part_name" : "Structure.DISPLACEMENT_Fixed",
+                "variable_name"   : "DISPLACEMENT",
+                "interval"        : [0.0,"End"],
+                "constrained"     : [true,true,true],
+                "value"           : [0.0,0.0,0.0]
+            }
+        }],
+        "loads_process_list"       : [{
+            "python_module" : "assign_vector_by_direction_to_condition_process",
+            "kratos_module" : "KratosMultiphysics",
+            "check"         : "DirectorVectorNonZero direction",
+            "process_name"  : "AssignVectorByDirectionToConditionProcess",
+            "Parameters"    : {
+                "model_part_name" : "Structure.PointLoad2D_Force",
+                "variable_name"   : "POINT_LOAD",
+                "interval"        : [0.0,"End"],
+                "modulus"         : "100000*t",
+                "direction"       : [0.0,-1.0,0.0]
+            }
+        }],
+        "list_other_processes"     : [],
+        "auxiliar_process_list"    : []
+    },
+    "output_processes" : {
+        "gid_output" : [{
+            "python_module" : "gid_output_process",
+            "kratos_module" : "KratosMultiphysics",
+            "process_name"  : "GiDOutputProcess",
+            "help"          : "This process writes postprocessing files for GiD",
+            "Parameters"    : {
+                "model_part_name"        : "Structure",
+                "output_name"            : "nnm_coarse",
+                "postprocess_parameters" : {
+                    "result_file_configuration" : {
+                        "gidpost_flags"               : {
+                            "GiDPostMode"           : "GiD_PostBinary",
+                            "WriteDeformedMeshFlag" : "WriteDeformed",
+                            "WriteConditionsFlag"   : "WriteConditions",
+                            "MultiFileFlag"         : "SingleFile"
+                        },
+                        "file_label"                  : "step",
+                        "output_control_type"         : "step",
+                        "output_interval"             : 1,
+                        "body_output"                 : true,
+                        "node_output"                 : false,
+                        "skin_output"                 : false,
+                        "plane_output"                : [],
+                        "nodal_results"               : ["DISPLACEMENT","REACTION"],
+                        "gauss_point_results"         : ["VON_MISES_STRESS"],
+                        "nodal_nonhistorical_results" : []
+                    },
+                    "point_data_configuration"  : []
+                }
+            }
+        }]
+    }
+}
