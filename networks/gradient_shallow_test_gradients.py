@@ -248,6 +248,100 @@ class GradModel2(keras.Model):
 
     def train_step(self, data):
 
+        print("ENTERED TRAIN STEP DEBUG")
+
+        A = np.array([[1.0, 1.0],[2.0, 2.0]]) ## Same definition as in app.py
+        A_tens = tf.convert_to_tensor(A)
+        x_true, r_true = data
+        print(x_true.numpy())
+        print(r_true.numpy())
+
+        train_vars = self.trainable_variables
+
+        # Automatic Gradient
+        with tf.GradientTape(persistent=True) as tape_d:
+            tape_d.watch(train_vars)
+            x_pred = self(x_true, training=True)
+
+        auto_grad = tape_d.gradient(x_pred, train_vars)
+        auto_diff = tape_d.jacobian(x_pred, train_vars, unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
+
+        print(auto_grad)
+        print(auto_diff)
+
+        x_tr=x_true.numpy()[0]
+        weights_hid=train_vars[0].numpy()
+        bias_hid=train_vars[1].numpy()
+        weights_out=train_vars[2].numpy()
+        bias_out=train_vars[3].numpy()
+
+        h1_bin=1.0
+        h2_bin=1.0
+        h1=max(x_tr[0]*weights_hid[0,0]+x_tr[1]*weights_hid[1,0]+bias_hid[0],0)
+        if h1==0: h1_bin=0.0
+        h2=max(x_tr[0]*weights_hid[0,1]+x_tr[1]*weights_hid[1,1]+bias_hid[1],0)
+        if h2==0: h2_bin=0.0
+        s1=h1*weights_out[0,0]+h2*weights_out[1,0]+bias_out[0]
+        s2=h1*weights_out[0,1]+h2*weights_out[1,1]+bias_out[1]
+
+        d_o1_d_h1_o1=h1
+        d_o1_d_h1_o2=0
+        d_o1_d_h2_o1=h2
+        d_o1_d_h2_o2=0
+
+        d_o2_d_h1_o1=0
+        d_o2_d_h1_o2=h1
+        d_o2_d_h2_o1=0
+        d_o2_d_h2_o2=h2
+
+        D_o1_ho=[[d_o1_d_h1_o1, d_o1_d_h1_o2],[d_o1_d_h2_o1, d_o1_d_h2_o2]]
+        D_o2_ho=[[d_o2_d_h1_o1, d_o2_d_h1_o2],[d_o2_d_h2_o1, d_o2_d_h2_o2]]
+        
+
+        d_o1_d_i1_h1=weights_out[0,0]*h1_bin*x_tr[0]
+        d_o1_d_i1_h2=weights_out[1,0]*h2_bin*x_tr[0]
+        d_o1_d_i2_h1=weights_out[0,0]*h1_bin*x_tr[1]
+        d_o1_d_i2_h2=weights_out[1,0]*h2_bin*x_tr[1]
+
+        d_o2_d_i1_h1=weights_out[0,1]*h1_bin*x_tr[0]
+        d_o2_d_i1_h2=weights_out[1,1]*h2_bin*x_tr[0]
+        d_o2_d_i2_h1=weights_out[0,1]*h1_bin*x_tr[1]
+        d_o2_d_i2_h2=weights_out[1,1]*h2_bin*x_tr[1]
+
+        D_o1_ih=[[d_o1_d_i1_h1,d_o1_d_i1_h2],[d_o1_d_i2_h1,d_o1_d_i2_h2]]
+        D_o2_ih=[[d_o2_d_i1_h1,d_o2_d_i1_h2],[d_o2_d_i2_h1,d_o2_d_i2_h2]]
+
+        print(D_o1_ho)
+        print(D_o2_ho)
+        print(D_o1_ih)
+        print(D_o2_ih)
+
+        # Now, let's apply the system's jacobian -A:
+
+        cnt = tf.constant([[[-1.0]],[[2.0]]],dtype=tf.float64)
+        print(cnt)
+
+        for layer in auto_diff:
+            print(layer)
+            # if len(tf.shape(layer))==4:
+            #     print(tf.slice(layer,begin=[0,0,0,0],size=[1,2,1,1]))
+            # else:
+            #     print(tf.slice(layer,begin=[0,0,0,],size=[1,2,1]))
+
+            multip_tensor=cnt*layer
+            print(multip_tensor)
+            print(tf.math.reduce_sum(multip_tensor,axis=1))
+
+            lay_shape=tf.shape(layer)
+            if len(lay_shape) == 4:
+                print(tf.reshape(layer,(lay_shape[0],lay_shape[1],lay_shape[2]*lay_shape[3])))
+
+        exit()
+
+        return
+
+    def train_step_orig(self, data):
+
         print("ENTERED_TRAIN_STEP_ORIG")
 
         A = np.array([[1.0, 1.0],[2.0, 2.0]]) ## Same definition as in app.py

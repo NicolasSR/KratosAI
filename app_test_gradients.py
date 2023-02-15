@@ -22,7 +22,7 @@ tf.get_logger().setLevel(logging.ERROR)
 from keras import layers
 from itertools import repeat
 
-import networks.gradient_shallow_nico as gradient_shallow_ae
+import networks.gradient_shallow_test_gradients as gradient_shallow_ae
 import utils.check_gradient as check_gradients
 import matplotlib.pyplot as plt
 

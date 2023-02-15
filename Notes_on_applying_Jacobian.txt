@@ -1,0 +1,41 @@
+Comprobar que el resultado de gradient/jacobian es igual con o sin el watch()
+Investigar formato de jacobian
+Comprobar que jacobian y batch_jacobian no dan lo mismo para nuestro autoencoder
+
+
+
+
+
+Mirar si Ax=b se cumple para u_i+1=u_i+x
+
+L=(r1-r*1)^2+(r2-r*2)^2
+
+dL/w1 =-2*(r1-r*1)*(dr*1/do1*do1/dw1+dr*1/do2*do2/dw1)-2*(r2-r*2)*(dr*2/do1*do1/dw1+dr*2/do2*do2/dw1)
+	=-2*(r1-r*1)*[dr*1/do1 dr*1/do2][do1/w1 do2/w1]T-2*(r2-r*2)*[dr*2/do1 dr*2/do2][do1/w1 do2/w1]T
+	=-2*(r1-r*1)*[a1_o1 a1_o2][do1/w1 do2/w1]T-2*(r2-r*2)*[a2_o1 a2_o2][do1/w1 do2/w1]T
+	=-2*[r1-r*1 r2-r*2]A[do1/w1 do2/w1]T
+
+dL/w2 =-2*[r1-r*1 r2-r*2]A[do1/w2 do2/w2]T
+
+...
+
+dL/W = -2*[r1-r*1 r2-r*2]A x Jac
+
+
+
+
+A:
+[a1_o1, a1_o2]
+[a2_o1, a2_o2]
+
+
+
+[do1/dw1   , do1/dw2   , do1/dw3   ]
+[do1/dw1'  , do1/dw2'  , do1/dw3'  ]
+[do1/dw1'' , do1/dw2'' , do1/dw3'' ]
+[do1/dw1''', do1/dw2''', do1/dw3''']
+
+[do2/dw1   , do2/dw2   , do2/dw3   ]
+[do2/dw1'  , do2/dw2'  , do2/dw3'  ]
+[do2/dw1'' , do2/dw2'' , do2/dw3'' ]
+[do2/dw1''', do2/dw2''', do2/dw3''']
