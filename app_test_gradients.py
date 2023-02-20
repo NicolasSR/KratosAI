@@ -15,6 +15,8 @@ import numpy as np
 
 import keras
 import tensorflow as tf
+# Hide GPU from visible devices
+tf.config.set_visible_devices([], 'GPU')
 
 import logging
 tf.get_logger().setLevel(logging.ERROR)

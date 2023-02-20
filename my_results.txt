@@ -1,0 +1,16 @@
+Things we have tried until now:
+
+Architecture: 2 hidden layers in encoder, 2 in decoder. LeakyRelu(0.3) and HeNormal
+
+Normalizing each column in S individually:
+ - Lr 0.001: val_loss_x 2.2453e-04
+ - Lr 0.0001: val_loss_x: 8.1201e-04
+
+
+
+
+Architecture: 3 hidden layers in encoder, 3 in decoder. LeakyRelu(0.3) and HeNormal
+
+Normalizing each column in S individually:
+ - Lr 0.0001: val_loss_x: 7.7117e-04
+ - Lr 0.001: val_loss_x: 1.2374e-04

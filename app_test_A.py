@@ -26,7 +26,7 @@ from itertools import repeat
 
 import kratos_io
 import clustering
-import networks.gradient_shallow_nico as gradient_shallow_ae
+import networks.gradient_shallow_test_A as gradient_shallow_ae
 import utils.check_gradient as check_gradients
 import matplotlib.pyplot as plt
 
@@ -70,98 +70,6 @@ def prepare_input(data_inputs_files, residuals_files, pointloads_files):
 
     return S, R, F
 
-def InitializeKratosAnalysis():
-    with open("ProjectParameters_fom.json", 'r') as parameter_file:
-        parameters = KMP.Parameters(parameter_file.read())
-
-    analysis_stage_class = StructuralMechanicsAnalysis
-
-    global_model = KMP.Model()
-    fake_simulation = CreateRomAnalysisInstance(analysis_stage_class, global_model, parameters)
-    fake_simulation.Initialize()
-    fake_simulation.InitializeSolutionStep()
-
-    return fake_simulation
-
-def normalize_snapshots_data(SReduced, normalization_strategy):
-    if normalization_strategy == 'per_feature':
-        print('Normalizing each feature in SReduced')
-        S_df = pd.DataFrame(SReduced.T)
-        for i in range(len(S_df.columns)):
-            S_df[i] = (S_df[i]-S_df[i].mean()) / (S_df[i].std()+0.00000001)
-        S_norm=S_df.to_numpy().T
-    elif normalization_strategy == 'global':
-        print('Applying global min-max normalization on S')
-        kratos_network.calculate_data_limits(SReduced)
-        S_norm = kratos_network.normalize_data(SReduced)
-    else:
-        print('No normalization')
-        S_norm = SReduced
-    return S_norm
-
-def analyze_residuals(R):
-    print("====== Residuals analysis phase ======")
-
-    R_df = pd.DataFrame(R)
-    print(R_df.head)
-    print(R_df.describe())
-
-    residuals_threshold = np.mean(np.abs(R))
-    residuals_mask = np.mean(np.where(np.abs(R)>residuals_threshold, 1, 0), axis=0)
-
-    trim_matrix_high = np.identity(len(R[0]))
-    trim_matrix_low = np.identity(len(R[0]))
-    for i in range(len(R[0])):
-        trim_matrix_high[i,i] = residuals_mask[i]
-        trim_matrix_low[i,i] = 1-residuals_mask[i]
-
-    R_high = R@trim_matrix_high
-    R_low = R@trim_matrix_low
-
-    R_high_max = np.max(R_high)
-    R_high_min = np.min(R_high)
-    R_low_max = np.max(R_low)
-    R_low_min = np.min(R_low)
-
-    print(residuals_mask)
-    print(R_high_max)
-    print(R_high_min)
-    print(R_low_max)
-    print(R_low_min)
-
-    return residuals_mask, R_high_max, R_high_min, R_low_max, R_low_min
-
-def snapshot_reduction(S):
-
-    print("=== Calculating Randomized Singular Value Decomposition ===")
-
-    with contextlib.redirect_stdout(None):
-        # Note: we redirect the output here because there is no option to reduce the log level of this method.
-        #U,_,_,error = RandomizedSingularValueDecomposition().Calculate(S,1e-16)
-        U,_,_ = np.linalg.svd(S, full_matrices=True, compute_uv=True, hermitian=False)
-        K = U[:,0:2]
-        U = U[:,0:svd_reduction]
-        SPri = K @ K.T @ S # Why do we project S into the first two modes uf U?
-
-    print("U shape: ", U.shape)
-
-    # Select the reduced snapshot or the full input
-    if config["use_reduced"]:                   # Project the original S matrix into the basis of modes in truncated U
-        print('Using projection of S matrix into modes of U')
-        SReduced = U.T @ ST
-    elif config["use_2d_layered"]:              # Separate S in two layers (one per var)
-        print("Separating variables into separate layers")
-        SReduced = np.zeros((2,26,ST.shape[1]))
-        for j in range(ST.shape[1]):
-            for i in range(26):
-                SReduced[0,i,j] = ST[i*2+0,j]
-                SReduced[1,i,j] = ST[i*2+1,j]
-    else:
-        print('Keeping original S matrix')
-        SReduced = S
-
-    return SReduced, U
-
 
 if __name__ == "__main__":
 
@@ -169,8 +77,8 @@ if __name__ == "__main__":
     encoding_factor=1/4
     svd_reduction = 20
     custom_loss = tf.keras.losses.MeanSquaredError()
-    normalization_strategy='per_feature'
-    test_ratio = 0.1
+    normalize_input=True
+    test_ratio = 0.2
 
     # List of files to read from
     data_inputs_files = [
@@ -200,7 +108,6 @@ if __name__ == "__main__":
     # Some configuration
     config = {
         "train_model":      True,
-        "finetune":         False,
         "test_model":       True,
         "save_model":       True,
         "print_results":    True,
@@ -208,41 +115,93 @@ if __name__ == "__main__":
         "use_2d_layered":   False,
     }
 
+    ### Next section is commented because the HDF5 App for Kratos crashes the script.
+    #   Because of this, we cannot get the predictions for the residuals at each timestep
+
     # Create a fake Analysis stage to calculate the predicted residuals
-    fake_simulation = InitializeKratosAnalysis()
+    with open("ProjectParameters_fom.json", 'r') as parameter_file:
+        parameters = KMP.Parameters(parameter_file.read())
+
+    analysis_stage_class = StructuralMechanicsAnalysis
+
+    global_model = KMP.Model()
+    fake_simulation = CreateRomAnalysisInstance(analysis_stage_class, global_model, parameters)
+    fake_simulation.Initialize()
+    fake_simulation.InitializeSolutionStep()
+
+    ###
 
     # Select the network to use
     kratos_network = gradient_shallow_ae.GradientShallow()
+    
+    # Enable this line if you want to print the snapshot in npy format.
+    # kratos_io.print_npy_snapshot(S, True)
 
-    # Get input data
     S, R, F = prepare_input(data_inputs_files, residuals_files, pointloads_files)
     print('Shape S: ', S.shape)
     print('Shape R: ', R.shape)
     print('Shape F: ', F.shape)
 
-    # Perfroming SVD on shapshot matrix
-    SReduced, U = snapshot_reduction(S)
 
-    # Normalize the snapshots according to the desired normalization mode
-    S_norm = normalize_snapshots_data(SReduced, normalization_strategy)
+    print("====== Residuals analysis phase ======")
+    residuals_threshold = np.mean(np.abs(R))
+    residuals_mask = np.mean(np.where(np.abs(R)>residuals_threshold, 1, 0), axis=0)
 
-    # Analyze the residuals and generate trim matrices and such
-    residuals_mask, R_high_max, R_high_min, R_low_max, R_low_min = analyze_residuals(R)
+    trim_matrix_high = np.identity(len(R[0]))
+    trim_matrix_low = np.identity(len(R[0]))
+    for i in range(len(R[0])):
+        trim_matrix_high[i,i] = residuals_mask[i]
+        trim_matrix_low[i,i] = 1-residuals_mask[i]
 
-    # Divide snapshots into train and test sets
-    S_train_T, S_test_T, R_train, R_test, F_train, F_test = train_test_split(S_norm.T, R, F, test_size=test_ratio, shuffle=True)
-    print('Shape S_train_T: ', S_train_T.shape)
-    print('Shape R_train: ', R_train.shape)
-    print('Shape F_train: ', F_train.shape)
-    print('Shape S_test_T: ', S_test_T.shape)
-    print('Shape R_test: ', R_test.shape)
-    print('Shape F_test: ', F_test.shape)
+    R_high = R@trim_matrix_high
+    R_low = R@trim_matrix_low
+
+    R_high_max = np.max(R_high)
+    R_high_min = np.min(R_high)
+    R_low_max = np.max(R_low)
+    R_low_min = np.min(R_low)
+
+    print("=== Calculating Randomized Singular Value Decomposition ===")
+
+    with contextlib.redirect_stdout(None):
+        # Note: we redirect the output here because there is no option to reduce the log level of this method.
+        #U,_,_,error = RandomizedSingularValueDecomposition().Calculate(S,1e-16)
+        U,_,_ = np.linalg.svd(S, full_matrices=True, compute_uv=True, hermitian=False)
+        K = U[:,0:2]
+        U = U[:,0:svd_reduction]
+        SPri = K @ K.T @ S # Why do we project S into the first two modes uf U?
+
+    print("U shape: ", U.shape)
+
+    # Select the reduced snapshot or the full input
+    if config["use_reduced"]:                   # Project the original S matrix into the basis of modes in truncated U
+        print('Using projection of S matrix into modes of U')
+        SReduced = U.T @ ST
+    elif config["use_2d_layered"]:              # Separate S in two layers (one per var)
+        print("Separating variables into separate layers")
+        SReduced = np.zeros((2,26,ST.shape[1]))
+        for j in range(ST.shape[1]):
+            for i in range(26):
+                SReduced[0,i,j] = ST[i*2+0,j]
+                SReduced[1,i,j] = ST[i*2+1,j]
+    else:
+        SReduced = S
+
+    kratos_network.calculate_data_limits(SReduced)
+
+    S2 = SReduced.copy()[:,1:]
+    SReduced=SReduced[:,:-1]
+    R=R[:-1,:]
+    F=F[:-1,:]
+
+    S_train_T, S_test_T, S2_train, S2_test, R_train, R_test, F_train, F_test = train_test_split(SReduced.T, S2.T, R, F, test_size=test_ratio, shuffle=True)
+
     S_train = S_train_T.T
     S_test = S_test_T.T
-    print('Shape S_train: ', S_train.shape)
-    print('Shape S_test: ', S_test.shape)
 
-    # Determine number of inputs and embeddings for the autoencoder
+    S_train_orig=S_train.copy()
+    S_test_orig=S_test.copy()
+
     num_decoded_var=SReduced.shape[0]
     num_encoding_var=int(num_decoded_var*encoding_factor)
 
@@ -252,26 +211,36 @@ if __name__ == "__main__":
     autoencoder = kratos_network.define_network(S_train, custom_loss, num_encoding_var)
     autoencoder.fake_simulation = fake_simulation # Attach the fake as  # Uncomment when able to use HDF5 App in Kratos
     autoencoder.U = U # Attach the svd for the projection
-    autoencoder.w = 1   # Weight for the custom loss defined inside GradModel2
+    autoencoder.w = 0.5   # Weight for the custom loss defined inside GradModel2
     autoencoder.residuals_mask = residuals_mask
     autoencoder.R_high_max = R_high_max
     autoencoder.R_high_min = R_high_min
     autoencoder.R_low_max = R_low_max
     autoencoder.R_low_min = R_low_min
-    if normalization_strategy == "global":
-        autoencoder.data_min=kratos_network.data_min
-        autoencoder.data_max=kratos_network.data_max
-    if not config["train_model"] or config["finetune"]:
+    if not config["train_model"]:
         print('======= Loading saved weights =======')
         # with open("saved_models/model.json", "r") as model_file:
         #     json_model = model_file.read()
         # autoencoder = keras.models.model_from_json(json_model)
         autoencoder.load_weights('saved_models/model_weights.h5')
 
+    # Prepare the data
+    if normalize_input==True:
+        SRedNorm_train = kratos_network.normalize_data(S_train)
+        SRedNorm_test = kratos_network.normalize_data(S_test)
+    else:
+        SRedNorm_train = S_train
+        SRedNorm_test = S_test
+
+    autoencoder.data_min=kratos_network.data_min
+    autoencoder.data_max=kratos_network.data_max
+
+
+
     if config["train_model"]:
         print('')
         print('=========== Starting training routine ============')
-        history = kratos_network.train_network(autoencoder, S_train, R_train, 100)
+        history = kratos_network.train_network(autoencoder, SRedNorm_train, (R_train, S2_train), 100)
         with open("saved_models/history.json", "w") as history_file:
             json.dump(str(history.history), history_file)
         print("Model trained")
@@ -286,16 +255,16 @@ if __name__ == "__main__":
         autoencoder.save_weights('saved_models/model_weights.h5')
         print("Model saved")
 
-    # Dettach the fake (As to prevent problems saving the model)
+    # Dettach the fake as (To prevent problems saving the model)
     autoencoder.fake_simulation = fake_simulation
     
     if config["test_model"]:
         print('=========== Starting test routine ============')
-        result = kratos_network.test_network(autoencoder, S_train, R_train)
-        result = kratos_network.test_network(autoencoder, S_test, R_test)
+        result = kratos_network.test_network(autoencoder, SRedNorm_train, R_train)
+        result = kratos_network.test_network(autoencoder, SRedNorm_test, R_test)
         print('Model tested')
 
-    test_sample=(S_test.T)[20]
+    test_sample=(SRedNorm_test.T)[20]
     test_sample=np.array([test_sample.T])
     predicted_x = kratos_network.predict_snapshot(autoencoder, test_sample)
     print(test_sample)
@@ -303,6 +272,12 @@ if __name__ == "__main__":
     print(test_sample-predicted_x)
 
     exit()
+
+
+
+
+
+
 
 
     NSPredict1 = kratos_network.predict_snapshot(autoencoder, SRedNorm_test)   # This is u', or f(q), or f(g(u))

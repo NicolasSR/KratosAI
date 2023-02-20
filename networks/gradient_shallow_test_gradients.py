@@ -256,20 +256,74 @@ class GradModel2(keras.Model):
         print(x_true.numpy())
         print(r_true.numpy())
 
+        mat1=tf.constant([1, 2, 3, 4, 5, 6], shape=[1, 2, 3])
+        mat2=tf.constant([4, 5, 6, 7, 8, 9], shape=[1, 3, 2])
+        mat_mult=tf.linalg.matmul(mat1,mat2)
+        print(mat_mult)
+
         train_vars = self.trainable_variables
 
         # Automatic Gradient
         with tf.GradientTape(persistent=True) as tape_d:
             tape_d.watch(train_vars)
             x_pred = self(x_true, training=True)
+        
+        r_pred = tf.transpose(tf.linalg.matmul(A_tens,x_pred,transpose_b=True))
+        loss_r = self.diff_loss(r_true,r_pred)
 
-        auto_grad = tape_d.gradient(x_pred, train_vars)
+        print('Residuals and loss')
+        print(r_true)
+        print(r_pred)
+        print(loss_r)
+
+        print(x_true)
+        print(train_vars)
+
         auto_diff = tape_d.jacobian(x_pred, train_vars, unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
+        autodiff_2= tape_d.batch_jacobian(x_pred, train_vars[0], unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
 
-        print(auto_grad)
         print(auto_diff)
+        print(auto_diff_2)
 
-        x_tr=x_true.numpy()[0]
+        exit()
+
+        total_gradients = []
+
+        i=0
+        for layer in auto_diff:
+            print(layer)
+
+            lay_shape=tf.shape(layer)
+            if len(lay_shape) == 4:
+                layer=tf.reshape(layer,(lay_shape[0],lay_shape[1],lay_shape[2]*lay_shape[3]))
+            
+            pre_grad=tf.linalg.matmul(A,layer)
+            print(pre_grad)
+            
+            grad=tf.linalg.matmul(loss_r,pre_grad)*(-2)
+            print(grad)
+
+            if len(lay_shape) == 4:
+                grad=tf.reshape(grad,(lay_shape[2],lay_shape[3]))
+            else:
+                grad=tf.reshape(grad,(lay_shape[2]))
+            print(grad)
+
+            print(train_vars[i])
+            
+            print('')
+            i+=1
+
+            total_gradients.append(grad)
+
+        print(total_gradients)
+
+        self.optimizer.apply_gradients(zip(total_gradients, train_vars))
+        
+
+        exit()
+
+        """ x_tr=x_true.numpy()[0]
         weights_hid=train_vars[0].numpy()
         bias_hid=train_vars[1].numpy()
         weights_out=train_vars[2].numpy()
@@ -314,29 +368,7 @@ class GradModel2(keras.Model):
         print(D_o1_ho)
         print(D_o2_ho)
         print(D_o1_ih)
-        print(D_o2_ih)
-
-        # Now, let's apply the system's jacobian -A:
-
-        cnt = tf.constant([[[-1.0]],[[2.0]]],dtype=tf.float64)
-        print(cnt)
-
-        for layer in auto_diff:
-            print(layer)
-            # if len(tf.shape(layer))==4:
-            #     print(tf.slice(layer,begin=[0,0,0,0],size=[1,2,1,1]))
-            # else:
-            #     print(tf.slice(layer,begin=[0,0,0,],size=[1,2,1]))
-
-            multip_tensor=cnt*layer
-            print(multip_tensor)
-            print(tf.math.reduce_sum(multip_tensor,axis=1))
-
-            lay_shape=tf.shape(layer)
-            if len(lay_shape) == 4:
-                print(tf.reshape(layer,(lay_shape[0],lay_shape[1],lay_shape[2]*lay_shape[3])))
-
-        exit()
+        print(D_o2_ih) """
 
         return
 
