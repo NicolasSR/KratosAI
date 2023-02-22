@@ -27,6 +27,15 @@ loss_r_tracker = keras.metrics.Mean(name="err_r")
 
 class GradModel2(keras.Model):
 
+    def __init__(self,*args,**kwargs):
+        super(GradModel2,self).__init__(*args,**kwargs)
+        self.normalization_mode = None
+        self.feat_means = None
+        self.feat_stds = None
+        self.data_min = None
+        self.data_max = None
+        self.w = None
+
     def project_prediction(self, y_pred, modelpart):
         values = y_pred[0]
 
@@ -72,201 +81,42 @@ class GradModel2(keras.Model):
     def diff_loss(self, y_true, y_pred):
         return (y_true - y_pred) ** 2
 
-    def train_step_debug(self, data):
-
-        print("ENTERED TRAIN STEP DEBUG")
-
-        w = self.w
-        x_true, r_true = data
-
-        # IDEN = np.identity(52)
-        # IDEN[0,0] = 0
-        # IDEN[1,1] = 0
-        # IDEN[2,2] = 0
-        # IDEN[3,3] = 0
-
-        A_true, b_true = self.get_r(x_true)
-
-        b_true = tf.convert_to_tensor(b_true)
-
-        A_true = tf.convert_to_tensor(A_true)
-        A_true_h = A_true[:4]/1.0e9
-        A_true_l = A_true[4:]/1.0e9
-
-        print('------')
-        print('A_t: ')
-        print(A_true_h)
-        print('x_true')
-        print(x_true)
-        print('b_t: ')
-        print(b_true[:4])
-        print('')
-        chain_rule = tf.transpose(tf.linalg.matmul(A_true_h,x_true,transpose_b=True))*1.0e9
-        print('chain_rule')
-        print(chain_rule)
-        print('')
-
-        print('------')
-        print('A_t: ')
-        print(A_true_l)
-        print('x_true')
-        print(x_true)
-        print('b_t: ')
-        print(b_true[4:])
-        print('')
-        chain_rule = tf.transpose(tf.linalg.matmul(A_true_l,x_true,transpose_b=True))
-        print('chain_rule')
-        print(chain_rule)
-        print('')
-
-        # Automatic Gradient
-        with tf.GradientTape(persistent=True) as tape_d:
-            x_pred = self(x_true, training=True)
-            loss_x = self.diff_loss(x_true, x_pred)
-            A_pred, b_pred = self.get_r(x_pred)
-            A_pred = tf.convert_to_tensor(A_pred)
-            b_pred = tf.convert_to_tensor(b_pred)
-            # print('------')
-            # print('b_pred: ')
-            # print(type(b_pred))
-            # print(b_pred)
-            # print('')
-            # print('A_pred: ')
-            # print(type(A_pred))
-            # print(A_pred)
-            chain_rule = tf.transpose(tf.linalg.matmul(A_pred,x_pred,transpose_b=True))
-            # print('')
-            # print('Chain rule: ')
-            # print(chain_rule)
-            err_r = self.diff_loss(b_true,chain_rule)
-
-            # r_true_trim = IDEN @ tf.transpose(r_true)
-            # b_true_trim = IDEN @ b_true
-            # b_pred_trim = IDEN @ b_pred
-
-        exit()
-
-        print("R expected:\n", r_true[0])
-        print("R calc U:\n", b_true)
-        print("R calc P:\n", b_pred)
-
-        # Compute gradients
-        trainable_vars = self.trainable_variables
-        gradients_loss_x = tape_d.gradient(loss_x, trainable_vars)
-        gradients_loss_r = tape_d.gradient(err_r, trainable_vars)
-
-        print(trainable_vars)
-
-        total_gradients = []
-        for i in range(len(gradients_loss_x)):
-            total_gradients.append(w*gradients_loss_x[i]+(1-w)*gradients_loss_r[i])
-
-        # Backpropagation
-        self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
-
-        # Compute our own metrics
-        loss_x_tracker.update_state(loss_x)
-        loss_r_tracker.update_state(err_r)
-            
-        print({"loss_x": loss_x_tracker.result(), "err_r": loss_r_tracker})
-        exit()
-        return {"loss_x": loss_x_tracker.result(), "err_r": loss_r_tracker}
-
-    def denormalize_data(self, input_data, data_min, data_max):
-        return input_data * (data_max - data_min) + data_min
-
-    def normalize_data(self, input_data, data_min, data_max):
-        return (input_data - data_min) / (data_max - data_min)
-
-    def train_step_chainRuleApproach(self, data):
-
-        w = self.w
-        x_true, r_true = data
-
-        if w == 1:
-
-            with tf.GradientTape(persistent=True) as tape_d:
-                x_pred = self(x_true, training=True)
-                loss_x = self.diff_loss(x_true, x_pred)
-
-            # Compute gradients
-            trainable_vars = self.trainable_variables
-            gradients_loss_x = tape_d.gradient(loss_x, trainable_vars)
-        
-            total_gradients = []
-            for i in range(len(gradients_loss_x)):
-                total_gradients.append(gradients_loss_x[i])
-
-            # Backpropagation
-            self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
-
-            loss_x_tracker.update_state(loss_x)
-
-            return {"loss_x": loss_x_tracker.result()}
-        
+    def denormalize_data(self, input_data):
+        if self.normalization_mode == "per_feature":
+            if tf.is_tensor(input_data):
+                output_data=input_data*np.array([self.feat_stds])
+                output_data=output_data+np.array([self.feat_means])
+            else:
+                for i in range(input_data.shape[1]):
+                    output_data=input_data
+                    output_data[:,i]= (output_data[:,i]*self.feat_stds[i])+self.feat_means[i]
+        elif self.normalization_mode == "global":
+            output_data = input_data * (self.data_max - self.data_min) + self.data_min
         else:
-            
-            x_true_denorm = self.denormalize_data(x_true, self.data_min, self.data_max)
-            A_true, b_true = self.get_r(x_true_denorm)
-            # b_true = tf.convert_to_tensor(b_true)
-            residual_true = tf.transpose(tf.linalg.matmul(A_true,x_true_denorm,transpose_b=True))
-            # min_residual = tf.math.reduce_min(residual_true)
-            # max_residual = tf.math.reduce_max(residual_true)
-            # residual_true = self.normalize_data(residual_true, min_residual, max_residual)
-            # print(residual_true)
+            output_data = input_data
+        return output_data
+        
+    def normalize_data(self, input_data):
+        if self.normalization_mode == "per_feature":
+            if tf.is_tensor(input_data):
+                output_data=input_data-np.array([self.feat_means])
+                output_data=output_data/(np.array([self.feat_stds])+0.00000001)
+            else:
+                for i in range(input_data.shape[1]):
+                    output_data=input_data
+                    output_data[:,i]=(output_data[:,i]-self.feat_means[i])/(self.feat_stds[i]+0.00000001)
+        elif self.normalization_mode == "global":
+            output_data = (input_data - self.data_min) / (self.data_max - self.data_min)
+        else:
+            output_data = input_data
+        return output_data
 
-            residual_high = residual_true*self.residuals_mask
-            residual_low = residual_true*(1-self.residuals_mask)
-
-            print(residual_high)
-            print(residual_low)
-
-            residual_high = self.normalize_data(residual_high, self.R_high_min, self.R_high_max)
-            residual_low = self.normalize_data(residual_low, self.R_low_min, self.R_low_max)
-
-            print(residual_high)
-            print(residual_low)
-
-            exit()
-
-            # Automatic Gradient
-            with tf.GradientTape(persistent=True) as tape_d:
-                x_pred = self(x_true, training=True)
-                x_pred_denorm = self.denormalize_data(x_pred, self.data_min, self.data_max)
-                loss_x = self.diff_loss(x_true, x_pred)
-                # A_pred, b_pred = self.get_r(x_pred)
-                # A_pred = tf.convert_to_tensor(A_pred)
-                # b_pred = tf.convert_to_tensor(b_pred)
-                # chain_rule = tf.transpose(tf.linalg.matmul(A_true,x_pred,transpose_b=True))
-                chain_rule = tf.transpose(tf.linalg.matmul(A_true,x_pred_denorm,transpose_b=True))
-                chain_rule = self.normalize_data(chain_rule, min_residual, max_residual)
-                print(chain_rule)
-                err_r = self.diff_loss(residual_true,chain_rule)
-
-            print(err_r)
-
-            # Compute gradients
-            trainable_vars = self.trainable_variables
-            gradients_loss_x = tape_d.gradient(loss_x, trainable_vars)
-            # print('GRADIENT 1')
-            # print(gradients_loss_x)
-            gradients_loss_r = tape_d.gradient(err_r, trainable_vars)
-            # print(' ')
-            # print('GRADIENT 2')
-            # print(gradients_loss_r)
-            
-            total_gradients = []
-            for i in range(len(gradients_loss_x)):
-                total_gradients.append(w*gradients_loss_x[i]+(1-w)*gradients_loss_r[i])
-
-            # Backpropagation
-            self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
-
-            # Compute our own metrics
-            loss_x_tracker.update_state(loss_x)
-            loss_r_tracker.update_state(err_r)
-
-            return {"loss_x": loss_x_tracker.result(), "err_r": loss_r_tracker.result()}
+    def set_normalization_data(self, normalization_mode, norm_data):
+        self.normalization_mode = normalization_mode
+        if self.normalization_mode == "per_feature":
+            self.feat_means, self.feat_stds = norm_data
+        elif self.normalization_mode == "global":
+            self.data_min, self.data_max = norm_data
 
     def train_step(self,data):
         w = self.w
@@ -295,8 +145,7 @@ class GradModel2(keras.Model):
             return {"loss_x": loss_x_tracker.result()}
         
         else:
-
-            x_true_denorm = self.denormalize_data(x_true, self.data_min, self.data_max)
+            x_true_denorm = self.denormalize_data(x_true)
             A_true, b_true = self.get_r(x_true_denorm)
             print(A_true)
 
@@ -309,7 +158,7 @@ class GradModel2(keras.Model):
                 tape_d.watch(trainable_vars)
                 x_pred = self(x_true, training=True)
                 loss_x = self.diff_loss(x_true, x_pred)
-                x_pred_denorm = self.denormalize_data(x_pred, self.data_min, self.data_max)
+                x_pred_denorm = self.denormalize_data(x_pred)
 
             grad_loss_x = tape_d.gradient(loss_x,trainable_vars)
             jac_u = tape_d.jacobian(x_pred_denorm, trainable_vars, unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
@@ -412,12 +261,12 @@ class GradModel2(keras.Model):
 
         else:
             
-            x_true_denorm = self.denormalize_data(x_true, self.data_min, self.data_max)
+            x_true_denorm = self.denormalize_data(x_true)
             A_true, b_true = self.get_r(x_true_denorm)
 
             x_pred = self(x_true, training=True)
             loss_x = self.diff_loss(x_true, x_pred)
-            x_pred_denorm = self.denormalize_data(x_pred, self.data_min, self.data_max)
+            x_pred_denorm = self.denormalize_data(x_pred)
 
             A_pred, b_pred = self.get_r(x_pred_denorm)
             A_pred  = tf.constant(A_pred)
@@ -461,26 +310,58 @@ class GradientShallow(network.Network):
     def my_metrics_function(_,y_true,y_pred):
         return (y_true - y_pred) ** 2
 
-    def define_network(self, input_data, custom_loss, encoded_size):
+    def define_network(self, input_data, custom_loss, ae_config):
         data = np.transpose(input_data)
 		
         leaky_alpha = 0.3
-        dropout_rate = 0.1
+
+        encoding_factor = ae_config["encoding_factor"]
+        hidden_layers = ae_config["hidden_layers"]
+        use_batch_normalisation = ae_config["use_batch_normalisation"]
+        dropout_rate = ae_config["dropout_rate"]
+
+        use_dropout = dropout_rate != 0.0
         
         decoded_size = data.shape[1]
-
-        print(f'{encoded_size=} and {decoded_size=}')
+        encoded_size=int(decoded_size*encoding_factor)
 
         model_input = tf.keras.Input(shape=(decoded_size,))
         decod_input = tf.keras.Input(shape=(encoded_size,))
 
-        hid_size_1 = int((decoded_size-encoded_size)*2/3+encoded_size)
-        hid_size_2 = int((decoded_size-encoded_size)/2+encoded_size)
-        hid_size_3 = int((decoded_size-encoded_size)/3+encoded_size)
-        
-        encoder_out = tf.keras.layers.Dense(hid_size_1, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(model_input)
+        hid_sizes_encoder = np.linspace(encoded_size, decoded_size, hidden_layers[0]+1, endpoint=False, dtype=int)
+        hid_sizes_encoder = np.flip(hid_sizes_encoder[1:])
+        hid_sizes_decoder = np.linspace(encoded_size, decoded_size, hidden_layers[1]+1, endpoint=False, dtype=int)[1:]
+
+        encoder_out = model_input
+        if use_batch_normalisation:
+            encoder_out = tf.keras.layers.BatchNormalization()(encoder_out)
+        if use_dropout:
+            encoder_out = tf.keras.layers.Dropout(dropout_rate)(encoder_out)
+        for layer_size in hid_sizes_encoder:
+            encoder_out = tf.keras.layers.Dense(layer_size, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(encoder_out)
+            encoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(encoder_out)
+            if use_batch_normalisation:
+                encoder_out = tf.keras.layers.BatchNormalization()(encoder_out)
+            if use_dropout:
+                encoder_out = tf.keras.layers.Dropout(dropout_rate)(encoder_out)
+        encoder_out = tf.keras.layers.Dense(encoded_size, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(encoder_out)
         encoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(encoder_out)
-        encoder_out = tf.keras.layers.Dense(hid_size_2, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(model_input)
+
+        decoder_out = decod_input
+        if use_batch_normalisation:
+            decoder_out = tf.keras.layers.BatchNormalization()(decoder_out)
+        if use_dropout:
+            decoder_out = tf.keras.layers.Dropout(dropout_rate)(decoder_out)
+        for layer_size in hid_sizes_decoder:
+            decoder_out = tf.keras.layers.Dense(layer_size, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(decoder_out)
+            decoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(decoder_out)
+            if use_batch_normalisation:
+                decoder_out = tf.keras.layers.BatchNormalization()(decoder_out)
+            if use_dropout:
+                decoder_out = tf.keras.layers.Dropout(dropout_rate)(decoder_out)
+        decoder_out = tf.keras.layers.Dense(decoded_size, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(decoder_out)
+        
+        """ encoder_out = tf.keras.layers.Dense(hid_size_2, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(model_input)
         encoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(encoder_out)
         # encoder_out = tf.keras.layers.BatchNormalization()(encoder_out)
         # encoder_out = tf.keras.layers.Dropout(dropout_rate)(encoder_out)
@@ -489,9 +370,9 @@ class GradientShallow(network.Network):
         # encoder_out = tf.keras.layers.BatchNormalization()(encoder_out)
         # encoder_out = tf.keras.layers.Dropout(dropout_rate)(encoder_out)
         encoder_out = tf.keras.layers.Dense(encoded_size, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(encoder_out)
-        encoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(encoder_out)
+        encoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(encoder_out) """
 
-        decoder_out = tf.keras.layers.Dense(hid_size_3, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(decod_input)
+        """ decoder_out = tf.keras.layers.Dense(hid_size_3, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(decod_input)
         decoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(decoder_out)
         # decoder_out = tf.keras.layers.BatchNormalization()(decoder_out)
         # decoder_out = tf.keras.layers.Dropout(dropout_rate)(decoder_out)
@@ -501,7 +382,7 @@ class GradientShallow(network.Network):
         decoder_out = tf.keras.layers.LeakyReLU(alpha=leaky_alpha)(decoder_out)
         # decoder_out = tf.keras.layers.BatchNormalization()(decoder_out)
         # decoder_out = tf.keras.layers.Dropout(dropout_rate)(decoder_out)
-        decoder_out = tf.keras.layers.Dense(decoded_size, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(decoder_out)
+        decoder_out = tf.keras.layers.Dense(decoded_size, activation=tf.keras.activations.linear, use_bias=True, kernel_initializer=HeNormal())(decoder_out) """
 
         self.encoder_model = tf.keras.Model(model_input, encoder_out, name='Encoder')
         self.decoder_model = tf.keras.Model(decod_input, decoder_out, name='Decoder')
@@ -534,10 +415,10 @@ class GradientShallow(network.Network):
 
         return a
 
-    def train_network(self, model, input_data, grad_data, epochs=1):
+    def train_network(self, model, input_data, grad_data, learning_rate, epochs=1):
         # Train the model
         def scheduler_fnc(epoch, lr):
-            new_lr = 0.001
+            new_lr = learning_rate
             return new_lr
 
         # feed_data = input_data.T
@@ -568,6 +449,11 @@ class GradientShallow(network.Network):
         # print(f"{feed_data.shape}")
         result = model.evaluate(input_data.T, grad_data, batch_size=1)
         return result
+
+    def set_normalization_data(self, feature_means, feature_stds):
+        self.feature_means = feature_means
+        self.feature_stds = feature_stds
+        return
 
     def calculate_gradients():
         return None

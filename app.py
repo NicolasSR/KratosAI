@@ -83,21 +83,28 @@ def InitializeKratosAnalysis():
 
     return fake_simulation
 
+
 def normalize_snapshots_data(SReduced, normalization_strategy):
     if normalization_strategy == 'per_feature':
+        feat_means = []
+        feat_stds = []
         print('Normalizing each feature in SReduced')
         S_df = pd.DataFrame(SReduced.T)
         for i in range(len(S_df.columns)):
-            S_df[i] = (S_df[i]-S_df[i].mean()) / (S_df[i].std()+0.00000001)
-        S_norm=S_df.to_numpy().T
+            feat_means.append(S_df[i].mean())
+            feat_stds.append(S_df[i].std())
+            # S_df[i] = (S_df[i]-S_df[i].mean()) / (S_df[i].std()+0.00000001)
+        autoencoder.set_normalization_data(normalization_strategy, (feat_means, feat_stds))
+        # SNorm=S_df.to_numpy().T
     elif normalization_strategy == 'global':
         print('Applying global min-max normalization on S')
-        kratos_network.calculate_data_limits(SReduced)
-        S_norm = kratos_network.normalize_data(SReduced)
+        data_min = np.min(SReduced)
+        data_max = np.max(SReduced)
+        autoencoder.set_normalization_data(normalization_strategy, (data_min, data_max))
     else:
         print('No normalization')
-        S_norm = SReduced
-    return S_norm
+    SNorm = autoencoder.normalize_data(SReduced.T)
+    return SNorm.T
 
 def analyze_residuals(R):
     print("====== Residuals analysis phase ======")
@@ -166,11 +173,35 @@ def snapshot_reduction(S):
 if __name__ == "__main__":
 
     # Defining variable values:
-    encoding_factor=1/4
     svd_reduction = 20
     custom_loss = tf.keras.losses.MeanSquaredError()
-    normalization_strategy='per_feature'
     test_ratio = 0.1
+
+    # Some configuration
+    config = {
+        "train_model":      True,
+        "finetune":         False,
+        "test_model":       True,
+        "save_model":       True,
+        "print_results":    True,
+        "use_reduced":      False,
+        "use_2d_layered":   False,
+    }
+
+    if not config["train_model"] or config["finetune"]:
+        print('======= Loading saved ae config =======')
+        with open("saved_models/ae_config.npy", "rb") as ae_config_file:
+            ae_config = np.load(ae_config_file,allow_pickle='TRUE').item()
+    else: 
+        ae_config = {
+            "encoding_factor": 1/4,
+            "normalization_strategy": 'none',   # OPTIONS: 'none', 'per_feature', 'global'
+            "residual_loss_ratio": 1,           # 1 being only loss on x, 0 only residual loss
+            "hidden_layers": (2,2),             # Number of hidden layers in encoder and decoder
+            "use_batch_normalisation": True,    # Whether to add batch normalisation layers
+            "dropout_rate": 0.0,                # If set to 0, the dropout layers won't be added
+            "learning_rate": 0.001
+        }
 
     # List of files to read from
     data_inputs_files = [
@@ -197,17 +228,6 @@ if __name__ == "__main__":
         "training/pointloads/result_120000.npy",
     ]
 
-    # Some configuration
-    config = {
-        "train_model":      True,
-        "finetune":         False,
-        "test_model":       True,
-        "save_model":       True,
-        "print_results":    True,
-        "use_reduced":      False,
-        "use_2d_layered":   False,
-    }
-
     # Create a fake Analysis stage to calculate the predicted residuals
     fake_simulation = InitializeKratosAnalysis()
 
@@ -223,14 +243,20 @@ if __name__ == "__main__":
     # Perfroming SVD on shapshot matrix
     SReduced, U = snapshot_reduction(S)
 
+    # Load the autoencoder model
+    print('======= Instantiating new autoencoder =======')
+    autoencoder = kratos_network.define_network(SReduced, custom_loss, ae_config)
+    autoencoder.fake_simulation = fake_simulation # Attach the fake sim
+
+
     # Normalize the snapshots according to the desired normalization mode
-    S_norm = normalize_snapshots_data(SReduced, normalization_strategy)
+    SNorm = normalize_snapshots_data(SReduced, ae_config["normalization_strategy"])
 
     # Analyze the residuals and generate trim matrices and such
     residuals_mask, R_high_max, R_high_min, R_low_max, R_low_min = analyze_residuals(R)
 
     # Divide snapshots into train and test sets
-    S_train_T, S_test_T, R_train, R_test, F_train, F_test = train_test_split(S_norm.T, R, F, test_size=test_ratio, shuffle=True)
+    S_train_T, S_test_T, R_train, R_test, F_train, F_test = train_test_split(SNorm.T, R, F, test_size=test_ratio, shuffle=True)
     print('Shape S_train_T: ', S_train_T.shape)
     print('Shape R_train: ', R_train.shape)
     print('Shape F_train: ', F_train.shape)
@@ -242,38 +268,22 @@ if __name__ == "__main__":
     print('Shape S_train: ', S_train.shape)
     print('Shape S_test: ', S_test.shape)
 
-    # Determine number of inputs and embeddings for the autoencoder
-    num_decoded_var=SReduced.shape[0]
-    num_encoding_var=int(num_decoded_var*encoding_factor)
-
-    # Load the model or train a new one. TODO: Fix custom_loss not being saved correctly
     
-    print('======= Instantiating new autoencoder =======')
-    autoencoder = kratos_network.define_network(S_train, custom_loss, num_encoding_var)
-    autoencoder.fake_simulation = fake_simulation # Attach the fake as  # Uncomment when able to use HDF5 App in Kratos
     autoencoder.U = U # Attach the svd for the projection
-    autoencoder.w = 1   # Weight for the custom loss defined inside GradModel2
+    autoencoder.w = ae_config["residual_loss_ratio"]   # Weight for the custom loss defined inside GradModel2
     autoencoder.residuals_mask = residuals_mask
     autoencoder.R_high_max = R_high_max
     autoencoder.R_high_min = R_high_min
     autoencoder.R_low_max = R_low_max
     autoencoder.R_low_min = R_low_min
-    if normalization_strategy == "global":
-        autoencoder.data_min=kratos_network.data_min
-        autoencoder.data_max=kratos_network.data_max
     if not config["train_model"] or config["finetune"]:
         print('======= Loading saved weights =======')
-        # with open("saved_models/model.json", "r") as model_file:
-        #     json_model = model_file.read()
-        # autoencoder = keras.models.model_from_json(json_model)
         autoencoder.load_weights('saved_models/model_weights.h5')
 
     if config["train_model"]:
         print('')
         print('=========== Starting training routine ============')
-        history = kratos_network.train_network(autoencoder, S_train, R_train, 100)
-        with open("saved_models/history.json", "w") as history_file:
-            json.dump(str(history.history), history_file)
+        history = kratos_network.train_network(autoencoder, S_train, R_train, ae_config["learning_rate"], 100)
         print("Model trained")
 
     # Dettach the fake as (To prevent problems saving the model)
@@ -284,6 +294,10 @@ if __name__ == "__main__":
         with open("saved_models/model.json", "w") as model_file:
             model_file.write(json_model)
         autoencoder.save_weights('saved_models/model_weights.h5')
+        with open("saved_models/history.json", "w") as history_file:
+            json.dump(str(history.history), history_file)
+        with open("saved_models/ae_config.npy", "wb") as ae_config_file:
+            np.save(ae_config_file, ae_config)
         print("Model saved")
 
     # Dettach the fake (As to prevent problems saving the model)
@@ -302,54 +316,19 @@ if __name__ == "__main__":
     print(predicted_x)
     print(test_sample-predicted_x)
 
-    exit()
+    NSPredict1 = kratos_network.predict_snapshot(autoencoder, S_test.T)   # This is u', or f(q), or f(g(u))
+    SP1  = autoencoder.denormalize_data(NSPredict1)
+    SP1 = SP1.T
+    ST = autoencoder.denormalize_data(S_test.T)
+    ST = ST.T
 
-
-    NSPredict1 = kratos_network.predict_snapshot(autoencoder, SRedNorm_test)   # This is u', or f(q), or f(g(u))
-    if normalize_input==True:
-        SPredict1  = kratos_network.denormalize_data(NSPredict1.T)
-    else:
-        SPredict1 = NSPredict1
-
-    print(f"{kratos_network.data_min=}")
-    print(f"{kratos_network.data_max=}")
-
-    print("U shape:", U.shape)
-
-    if config["use_reduced"]:
-        SP1 = U@(SPredict1)
-    elif config["use_2d_layered"]:
-        SP1 = np.zeros((svd_reduction,ST.shape[1]))
-        for j in range(ST.shape[1]):
-            for i in range(26):
-                SP1[i*2+0,j] = SPredict1[0,i,j]
-                SP1[i*2+1,j] = SPredict1[1,i,j]
-    else:
-        SP1 = SPredict1
-
-    print("S  Shape:",   S.shape)
+    print("ST  Shape:",   ST.shape)
     print("SP Shape:", SP1.shape)
 
-    print(f"NNM norm error : {np.linalg.norm(SP1-ST)/np.linalg.norm(ST)}")
-    print(f"NNM norm error*: {np.linalg.norm(SP1[5]-ST[5])/np.linalg.norm(ST[5])}")
+    print(f"NNM norm error : {np.linalg.norm(SP1.T-ST.T)/np.linalg.norm(ST.T)}")
+    print(f"NNM norm error*: {np.linalg.norm(SP1.T[5]-ST.T[5])/np.linalg.norm(ST.T[5])}")
 
-    print(f"SVD norm error : {np.linalg.norm(SPri-S)/np.linalg.norm(S)}")
-    print(f"SVD norm error*: {np.linalg.norm(SPri[5]-S[5])/np.linalg.norm(S[5])}")
-
-    print("Trying results calling model directly:")
-    print("nsc shape:", SReduced.shape)
-
-    fh = 0
-    TI = SReduced[:,fh:fh+1]
-
-    print("TI shape:", TI.shape)
-
-    TP = kratos_network.predict_snapshot(autoencoder, TI)
-    TP = TP[0].T
-
-    print("TI norm error", np.linalg.norm((TP+1)-(TI+1))/np.linalg.norm(TI+1))
-
-    # print(SP1.T[1])
+    exit()
 
     # With Kratos enabled this prints the predicted results in mdpa format for GiD
     if config["print_results"]:
