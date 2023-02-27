@@ -26,7 +26,7 @@ from itertools import repeat
 
 import kratos_io
 import clustering
-import networks.gradient_shallow_nico as gradient_shallow_ae
+import networks.gradient_shallow_nico_Proof2 as gradient_shallow_ae
 import utils.check_gradient as check_gradients
 import matplotlib.pyplot as plt
 
@@ -182,13 +182,13 @@ if __name__ == "__main__":
         "train_model":      True,
         "finetune":         False,
         "test_model":       True,
-        "save_model":       True,
+        "save_model":       False,
         "print_results":    True,
         "use_reduced":      False,
         "use_2d_layered":   False,
     }
 
-    if not config["train_model"] or config["finetune"]:
+    if not config["train_model"]: # or config["finetune"]:
         print('======= Loading saved ae config =======')
         with open("saved_models/ae_config.npy", "rb") as ae_config_file:
             ae_config = np.load(ae_config_file,allow_pickle='TRUE').item()
@@ -228,9 +228,6 @@ if __name__ == "__main__":
         "training/pointloads/result_120000.npy",
     ]
 
-    # Create a fake Analysis stage to calculate the predicted residuals
-    fake_simulation = InitializeKratosAnalysis()
-
     # Select the network to use
     kratos_network = gradient_shallow_ae.GradientShallow()
 
@@ -246,8 +243,7 @@ if __name__ == "__main__":
     # Load the autoencoder model
     print('======= Instantiating new autoencoder =======')
     autoencoder = kratos_network.define_network(SReduced, custom_loss, ae_config)
-    autoencoder.fake_simulation = fake_simulation # Attach the fake sim
-
+    autoencoder.gen_random_matrices(SReduced.shape[0])
 
     # Normalize the snapshots according to the desired normalization mode
     SNorm = normalize_snapshots_data(SReduced, ae_config["normalization_strategy"])
@@ -286,9 +282,6 @@ if __name__ == "__main__":
         history = kratos_network.train_network(autoencoder, S_train, R_train, ae_config["learning_rate"], 100)
         print("Model trained")
 
-    # Dettach the fake as (To prevent problems saving the model)
-    autoencoder.fake_simulation = None
-
     if config["save_model"] and config["train_model"]:
         json_model = autoencoder.to_json()
         with open("saved_models/model.json", "w") as model_file:
@@ -299,9 +292,6 @@ if __name__ == "__main__":
         with open("saved_models/ae_config.npy", "wb") as ae_config_file:
             np.save(ae_config_file, ae_config)
         print("Model saved")
-
-    # Dettach the fake (As to prevent problems saving the model)
-    autoencoder.fake_simulation = fake_simulation
     
     if config["test_model"]:
         print('=========== Starting test routine ============')

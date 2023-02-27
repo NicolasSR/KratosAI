@@ -36,46 +36,33 @@ class GradModel2(keras.Model):
         self.data_max = None
         self.w = None
 
-    def project_prediction(self, y_pred, modelpart):
-        values = y_pred[0]
-
-        itr = 0
-
-        for node in modelpart.Nodes:
-            if not node.IsFixed(KMP.DISPLACEMENT_X):
-                node.SetSolutionStepValue(KMP.DISPLACEMENT_X, values[itr+0])
-                node.X = node.X0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_X)
-
-            if not node.IsFixed(KMP.DISPLACEMENT_Y):
-                node.SetSolutionStepValue(KMP.DISPLACEMENT_Y, values[itr+1])
-                node.Y = node.Y0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_Y)
-
-            itr += 2
+    def gen_random_matrices(self, length):
+        rng = np.random.default_rng(2021)
+        self.a_vec = rng.random((1,length))*40-20
+        self.b_mat = rng.random((length,length))*40-20
+        print('a and B')
+        print(self.a_vec)
+        print(self.a_vec.shape)
+        print(self.b_mat)
+        print(self.b_mat.shape)
 
     def get_r(self, y_pred):
-        space =     KMP.UblasSparseSpace()
-        strategy  = self.fake_simulation._GetSolver()._GetSolutionStrategy()
-        buildsol  = self.fake_simulation._GetSolver()._GetBuilderAndSolver()
-        scheme    = KMP.ResidualBasedIncrementalUpdateStaticScheme()
-        modelpart = self.fake_simulation._GetSolver().GetComputingModelPart()
         
-        A = strategy.GetSystemMatrix()
-        b = strategy.GetSystemVector()#KMP.Vector(52)
-
-        space.SetToZeroMatrix(A)
-        space.SetToZeroVector(b)
-
-        self.project_prediction(y_pred, modelpart)
-
-        buildsol.Build(scheme, modelpart, A, b)
-
-        b=np.array(b,copy=False)# list(b.__iter__()))
-
-        Ascipy = scipy.sparse.csr_matrix((A.value_data(), A.index2_data(), A.index1_data()), shape=(A.Size1(), A.Size2()))
-
-        raw_A = -Ascipy.todense()
+        id_mat=np.identity(y_pred.shape[1])
+        y_pred=y_pred.numpy()
         
-        return raw_A/3e9, b/3e9
+        b_1=y_pred.T@self.a_vec
+        b_2=b_1@y_pred.T
+        b_3=self.b_mat@y_pred.T
+        b = b_2+b_3
+        b=b.T
+
+        A_1=y_pred.T@self.a_vec
+        A_2=y_pred@self.a_vec.T
+        A_3=A_2*id_mat
+        A = A_1+A_3+self.b_mat
+        
+        return A, b
 
     # Mean square error of the data
     def diff_loss(self, y_true, y_pred):
@@ -147,12 +134,6 @@ class GradModel2(keras.Model):
         else:
             x_true_denorm = self.denormalize_data(x_true)
             A_true, b_true = self.get_r(x_true_denorm)
-            # print(A_true)
-
-            # alpha=1
-            # jac_r_true = -(0-b_true) @ (alpha * A_true.T)
-            # print(A_true)
-            # print(jac_r_true)
 
             with tf.GradientTape(persistent=True) as tape_d:
                 tape_d.watch(trainable_vars)
@@ -174,36 +155,16 @@ class GradModel2(keras.Model):
 
 
             ## Check how similar b_true and r_true are. Thheyshould be the same
+            # print(A_true)
             # print(A_pred)
             # print(r_true)
             # print(b_true)
             # print(b_pred)
 
-            # print(x_true)
-            # print(x_pred)
-            # print('')
-
-            """ x_pred_2=x_true+tf.random.normal(shape = x_true.get_shape(), mean = 0.0, stddev = 0.0000000001, dtype = tf.float64)
-            x_pred_2_denorm = self.denormalize_data(x_pred_2, self.data_min, self.data_max)
-            _, b_pred2_ = self.get_r(x_pred_2_denorm)
-
-            print(r_true)
-            print(b_true)
-            print(b_pred2_)
-
-            print(x_true)
-            print(x_pred_2)
-            print('') """
-
             r_pred = b_pred
             err_r = b_true-r_pred
             err_r = tf.expand_dims(tf.constant(err_r),axis=0)
             loss_r = self.diff_loss(b_true, r_pred)
-            # print(A_pred)
-            # print(b_true)
-            # print(r_pred)
-            # print(err_r)
-            # print(loss_r)
 
             total_gradients = []
 
@@ -213,23 +174,14 @@ class GradModel2(keras.Model):
                 l_shape=tf.shape(layer)
                 if len(l_shape) == 4:
                     layer=tf.reshape(layer,(l_shape[0],l_shape[1],l_shape[2]*l_shape[3]))
-                # if i==0 or i==5 or i==10:
-                #     print(-A_pred)
-                # print(layer)
+
                 pre_grad=tf.linalg.matmul(A_pred,tf.squeeze(layer,axis=0),a_is_sparse=True)
-                # print(pre_grad)
-                # print(err_r)
-                grad_loss_r=tf.matmul(err_r,pre_grad)*(-2)#/1e10 #1e10 to normalize. Are we sure we can do this? I think so
-                # print(grad_loss_r)
+                grad_loss_r=tf.matmul(err_r,pre_grad)*(-2)
 
                 if len(l_shape) == 4:
                     grad_loss_r=tf.reshape(grad_loss_r,(l_shape[2],l_shape[3]))
                 else:
                     grad_loss_r=tf.reshape(grad_loss_r,(l_shape[2]))
-
-                # if i==0 or i==5 or i==10:
-                #     print(grad_loss_r)
-                #     print(trainable_vars[i])
 
                 total_gradients.append(w*grad_loss_x[i]+(1-w)*grad_loss_r)
                 

@@ -23,51 +23,34 @@ from utils.randomized_singular_value_decomposition import RandomizedSingularValu
 
 class DecayTester():
 
-    def __init__(self, kratos_sim):
-        self.fake_simulation=kratos_sim
+    def __init__(self, length):
+        self.gen_random_matrices(length)
 
-    def project_prediction(self, y_pred, modelpart):
-        values = y_pred[0]
-
-        itr = 0
-
-        for node in modelpart.Nodes:
-            if not node.IsFixed(KMP.DISPLACEMENT_X):
-                node.SetSolutionStepValue(KMP.DISPLACEMENT_X, values[itr+0])
-                node.X = node.X0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_X)
-
-            if not node.IsFixed(KMP.DISPLACEMENT_Y):
-                node.SetSolutionStepValue(KMP.DISPLACEMENT_Y, values[itr+1])
-                node.Y = node.Y0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_Y)
-
-            itr += 2
+    def gen_random_matrices(self, length):
+        self.a_vec = np.random.rand(1,length)*40-20
+        self.b_mat = np.random.rand(length,length)*40-20
+        print('a and B')
+        print(self.a_vec)
+        print(self.a_vec.shape)
+        print(self.b_mat)
+        print(self.b_mat.shape)
 
     def get_r(self, y_pred):
-        space =     KMP.UblasSparseSpace()
-        strategy  = self.fake_simulation._GetSolver()._GetSolutionStrategy()
-        buildsol  = self.fake_simulation._GetSolver()._GetBuilderAndSolver()
-        scheme    = KMP.ResidualBasedIncrementalUpdateStaticScheme()
-        modelpart = self.fake_simulation._GetSolver().GetComputingModelPart()
+
+        id_mat=np.identity(y_pred.shape[1])
         
-        A = strategy.GetSystemMatrix()
-        b = strategy.GetSystemVector()#KMP.Vector(52)
+        b_1=y_pred.T@self.a_vec
+        b_2=b_1@y_pred.T
+        b_3=self.b_mat@y_pred.T
+        b = b_2+b_3
+        b=b.T
 
-        space.SetToZeroMatrix(A)
-        space.SetToZeroVector(b)
+        A_1=y_pred.T@self.a_vec
+        A_2=y_pred@self.a_vec.T
+        A_3=A_2*id_mat
+        A = A_1+A_3+self.b_mat
 
-        self.project_prediction(y_pred, modelpart)
-
-        buildsol.Build(scheme, modelpart, A, b)
-
-        b=np.array(b,copy=False)# list(b.__iter__()))
-
-        Ascipy = scipy.sparse.csr_matrix((A.value_data(), A.index2_data(), A.index1_data()), shape=(A.Size1(), A.Size2()))
-
-        raw_A = -Ascipy.todense()
-        
-        # return raw_A/3e9, b/3e9
-        return raw_A, b
-
+        return A, b
     
     def test_error(self,x_true,r_true,eps_vec):
         
@@ -147,22 +130,10 @@ if __name__ == "__main__":
         "training/pointloads/result_120000.npy",
     ]
 
-    # Create a fake Analysis stage to calculate the predicted residuals
-    with open("ProjectParameters_fom.json", 'r') as parameter_file:
-        parameters = KMP.Parameters(parameter_file.read())
-
-    analysis_stage_class = StructuralMechanicsAnalysis
-
-    global_model = KMP.Model()
-    fake_simulation = CreateRomAnalysisInstance(analysis_stage_class, global_model, parameters)
-    fake_simulation.Initialize()
-    fake_simulation.InitializeSolutionStep()    
-
     S, R = prepare_input(data_inputs_files, residuals_files, pointloads_files)
     print('Shape S: ', S.shape)
-    print('Shape R: ', R.shape)
 
-    resiudal_tester = DecayTester(fake_simulation)
+    resiudal_tester = DecayTester(S.shape[0])
 
     rand_id = np.random.choice(np.arange(S.shape[1]))
     snapshot = S.T[rand_id]

@@ -3,7 +3,7 @@ import sys
 import math
 
 import numpy as np
-np.random.seed(seed=245)
+np.random.seed(seed=74)
 import scipy
 
 import utils
@@ -26,7 +26,7 @@ class DecayTester():
     def __init__(self, kratos_sim):
         self.fake_simulation=kratos_sim
 
-    def project_prediction(self, y_pred, modelpart):
+    def project_prediction(self, y_pred, f_true, modelpart):
         values = y_pred[0]
 
         itr = 0
@@ -42,10 +42,14 @@ class DecayTester():
 
             itr += 2
 
-    def get_r(self, y_pred):
+        # for condition in modelpart.Conditions:
+        #     condition.SetValue(SMA.POINT_LOAD, f_true)
+
+    def get_r(self, y_pred, f_true):
         space =     KMP.UblasSparseSpace()
         strategy  = self.fake_simulation._GetSolver()._GetSolutionStrategy()
         buildsol  = self.fake_simulation._GetSolver()._GetBuilderAndSolver()
+        print(buildsol)
         scheme    = KMP.ResidualBasedIncrementalUpdateStaticScheme()
         modelpart = self.fake_simulation._GetSolver().GetComputingModelPart()
         
@@ -55,7 +59,7 @@ class DecayTester():
         space.SetToZeroMatrix(A)
         space.SetToZeroVector(b)
 
-        self.project_prediction(y_pred, modelpart)
+        self.project_prediction(y_pred, f_true, modelpart)
 
         buildsol.Build(scheme, modelpart, A, b)
 
@@ -64,18 +68,24 @@ class DecayTester():
         Ascipy = scipy.sparse.csr_matrix((A.value_data(), A.index2_data(), A.index1_data()), shape=(A.Size1(), A.Size2()))
 
         raw_A = -Ascipy.todense()
+
+        alpha=1.0
+        v = b @ (alpha * raw_A.T)
+        aux = y_pred.T @ v
+
+        # print(v.shape)
+        # print(aux.shape)
         
-        # return raw_A/3e9, b/3e9
-        return raw_A, b
+        return aux/3e9, b/3e9
 
     
-    def test_error(self,x_true,r_true,eps_vec):
+    def test_error(self,x_true,r_true,f_true,eps_vec):
         
         x_true = np.expand_dims(x_true, axis=0)
         print('x_true')
         print(x_true)
         
-        A_true, b_true = self.get_r(x_true)
+        A_true, b_true = self.get_r(x_true,f_true)
         print(A_true)
         print(r_true)
         print(b_true)
@@ -91,13 +101,23 @@ class DecayTester():
 
             ev=v*eps
             x_app=x_true+ev
-            _, b_app = self.get_r(x_app)
+            _, b_app = self.get_r(x_app,f_true)
+            # print(b_true)
+            # print(b_app)
+            # print('')
 
             first_order=A_true@ev.T
             L=b_app-b_true-first_order.T
             err_vec.append(np.linalg.norm(L))
 
         return err_vec
+
+        #     L_high=L[:,:4]
+        #     L_low=L[:,4:]
+        #     err_vec_h.append(np.linalg.norm(L_high))
+        #     err_vec_l.append(np.linalg.norm(L_low))
+
+        # return err_vec, err_vec_h, err_vec_l
 
 
 def prepare_input(data_inputs_files, residuals_files, pointloads_files):
@@ -107,14 +127,21 @@ def prepare_input(data_inputs_files, residuals_files, pointloads_files):
 
     R = None
     for r in residuals_files:
-        # a = np.load(r) / 3e9 # We scale the resiuals because they are too close to 0 originally?
-        a = np.load(r) # We scale the resiuals because they are too close to 0 originally?
+        a = np.load(r) / 3e9 # We scale the resiuals because they are too close to 0 originally?
         if R is None:
             R = a
         else:
             R = np.concatenate((R, a), axis=0)
 
-    return S, R
+    F = None
+    for f in pointloads_files:
+        a = np.load(f)
+        if F is None:
+            F = a
+        else:
+            F = np.concatenate((F, a), axis=0)
+
+    return S, R, F
 
 
 
@@ -158,22 +185,30 @@ if __name__ == "__main__":
     fake_simulation.Initialize()
     fake_simulation.InitializeSolutionStep()    
 
-    S, R = prepare_input(data_inputs_files, residuals_files, pointloads_files)
+    S, R, F = prepare_input(data_inputs_files, residuals_files, pointloads_files)
     print('Shape S: ', S.shape)
     print('Shape R: ', R.shape)
+    print('Shape F: ', F.shape)
+
+
+    S=S.T
+    # S_future=S.copy()[1:]
+    # S_current=S.copy()[:-1]
+    # S_diff=S_future-S_current
 
     resiudal_tester = DecayTester(fake_simulation)
 
-    rand_id = np.random.choice(np.arange(S.shape[1]))
-    snapshot = S.T[rand_id]
+    rand_id = np.random.choice(np.arange(S.shape[0]))
+    # rand_id = np.random.choice(np.arange(S_diff.shape[0]))
+    snapshot = S[rand_id]
+    # snapshot = S_diff[rand_id]
     residual = R[rand_id]
+    pointload = F[rand_id]
 
     eps_vec = np.logspace(1, 12, 1000)/1e13
-    # eps_vec = np.linspace(0.001, 5.0, 1000)
-    # eps_vec = np.linspace(0.000001, 0.001, 1000)
     square=np.power(eps_vec,2)
 
-    errors = resiudal_tester.test_error(snapshot,residual,eps_vec)
+    errors = resiudal_tester.test_error(snapshot,residual,pointload,eps_vec)
     
     plt.plot(eps_vec, square, "--", label="square")
     plt.plot(eps_vec, eps_vec, "--", label="linear")
