@@ -61,6 +61,7 @@ class DecayTester():
         A_true, b_true = self.get_r(x_true)
         print(A_true)
         print(r_true)
+        print('b_true')
         print(b_true)
 
         v=np.random.rand(1,52)
@@ -74,7 +75,9 @@ class DecayTester():
 
             ev=v*eps
             x_app=x_true+ev
-            _, b_app = self.get_r(x_app)
+            A_app, b_app = self.get_r(x_app)
+            # print(A_app)
+            # print(b_app)
 
             first_order=A_true@ev.T
             L=b_app-b_true-first_order.T
@@ -140,6 +143,7 @@ if __name__ == "__main__":
     residual = R[rand_id]
 
     eps_vec = np.logspace(1, 12, 1000)/1e13
+    # eps_vec = [1e-12, 1e-9, 1e-6, 1e-3]
     # eps_vec = np.linspace(0.001, 5.0, 1000)
     # eps_vec = np.linspace(0.000001, 0.001, 1000)
     square=np.power(eps_vec,2)

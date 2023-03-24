@@ -1,0 +1,9 @@
+**/__pycache__/
+/saved_models/
+/saved_models_new/
+/saved_models_conv2d/
+/saved_models_conv2d_proof/
+/saved_models_conv2d_experimental/
+/logs/
+/datasets_low/
+/datasets_low_big/

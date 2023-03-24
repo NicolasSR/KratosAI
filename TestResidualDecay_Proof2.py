@@ -46,6 +46,17 @@ class DecayTester():
         A_5=A_4*id_mat
         A = 2*A_2+A_3+A_5+self.c_mat#+self.noise_mat
 
+        b=np.tanh(y_pred)
+        print(b.shape)
+        print(y_pred)
+        A=id_mat.copy()
+        a=1/np.power(np.cosh(y_pred),2)
+        print(a)
+        for i in range(len(b[0])):
+            A[i,i]=a[0,i]
+        print(A)        
+
+
         """ print('id_mat')
         print(id_mat)
         print(id_mat.shape)
