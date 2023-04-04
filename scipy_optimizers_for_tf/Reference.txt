@@ -1,0 +1,3 @@
+Originals obtained from:
+
+https://github.com/pedro-r-marques/keras-opt

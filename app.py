@@ -89,15 +89,15 @@ if __name__ == "__main__":
     }
 
     ae_config = {
-        "name": 'LeakyRelu_w1',
+        "name": 'R_as_regularizer_w0.001',
         "encoding_size": 2,
         "hidden_layers": ([288, 192, 96],[96, 192, 288]),
         "batch_size": 1,
         "epochs": 150,
         "normalization_strategy": 'feature_stand',  # ['none','feature_stand','channel_range']
-        "residual_loss_ratio": ('const', 1.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "residual_loss_ratio": ('const', 0.001), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "learning_rate": ('const', 1e-3), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "residual_norm_factor": ('const',1.0e5),
+        "residual_norm_factor": ('const',1.0),
         "dataset_path": 'datasets_low/',
         "models_path": 'saved_models_new/',
         "finetune_from": None,

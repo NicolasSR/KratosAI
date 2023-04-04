@@ -41,7 +41,7 @@ from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Norma
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error
 
 import kratos_io
-from networks.conv2d_residual_ae import  Conv2D_Residual_AE
+from networks.conv2d_residual_ae_scipy import  Conv2D_Residual_AE
 
 def print_gpu_info():
     gpu_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -61,6 +61,7 @@ def prepare_input(dataset_path):
     F_test=np.load(dataset_path+'F_test.npy')[:,0,:]
 
     return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
+    # return S_flat_orig[:4], S_flat_orig_train[:4], S_flat_orig_test[:4], R_train[:4], R_test[:4], F_train[:4], F_test[:4]
 
 def InitializeKratosAnalysis():
     with open("ProjectParameters_fom.json", 'r') as parameter_file:
@@ -126,7 +127,7 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'r_as_regularizer_w100',
+        "name": 'continue_scipy_optimizer_test',
         "encoding_size": 1,
         "hidden_layers": ((16,(2,5),(1,2)),
                           (32,(2,5),(1,2))
@@ -134,13 +135,13 @@ if __name__ == "__main__":
         "batch_size": 1,
         "epochs": 100,
         "normalization_strategy": 'channel_range',  # ['feature_stand','channel_range']
-        "residual_loss_ratio": ('const', 100), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]
         "dataset_path": 'datasets_low/',
-        "models_path": 'saved_models_conv2d/',
-        "finetune_from": None,
+        "models_path": 'saved_models_conv2d_scipy/',
+        "finetune_from": 'saved_models_conv2d_scipy/W0_GFact1_1Neur/',
         "residual_grad_normalisation": None # For now it is fixed to the identity
      }
     

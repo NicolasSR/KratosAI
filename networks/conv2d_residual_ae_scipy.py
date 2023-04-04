@@ -17,6 +17,7 @@ import KratosMultiphysics.RomApplication as ROM
 import KratosMultiphysics.StructuralMechanicsApplication as SMA
 
 from utils.custom_scheduler import CustomLearningRateScheduler
+from scipy_optimizers_for_tf.scipy_optimizer_kratos import make_train_function
 
 
 # Create a custom Model:
@@ -38,9 +39,8 @@ class Conv2DResidualAEModel(keras.Model):
         self.max_grad_diff=1
 
     def set_config_values(self, ae_config, R, data_normalizer):
-        print('Mean R:', np.mean(R[:,4:]))
-        print('Mean R:', np.mean(R[:,:4]))
         self.set_residual_weighting_vec(R)
+        self.r_norm_factor=ae_config["residual_norm_factor"][1]
         self.data_normalizer=data_normalizer
         # self.loss_combination_method = ae_config["loss_combination_method"]
 
@@ -97,10 +97,10 @@ class Conv2DResidualAEModel(keras.Model):
         return (y_true - y_pred) ** 2
 
     def set_residual_weighting_vec(self, R_orig):
-        self.residual_weights_vec=[1e-3 for i in range(4)]
-        self.residual_weights_vec=self.residual_weights_vec+[1e-6 for i in range(48)]
-        self.residual_weights_vec=np.array(self.residual_weights_vec)
-        # self.residual_weights_vec=np.ones(R_orig.shape[1], dtype=np.float64)
+        # self.residual_weights_vec=[1e-3 for i in range(4)]
+        # self.residual_weights_vec=self.residual_weights_vec+[1e-6 for i in range(48)]
+        # self.residual_weights_vec=np.array(self.residual_weights_vec)
+        self.residual_weights_vec=np.ones(R_orig.shape[1], dtype=np.float64)
         print('residual_weights_vec', self.residual_weights_vec, self.residual_weights_vec.shape)
         # init_vec = np.mean(np.abs(R_orig), axis=0)
         # print('residual_weights_vec', init_vec)
@@ -127,88 +127,7 @@ class Conv2DResidualAEModel(keras.Model):
         return grad_loss_x, jac_u, loss_x, x_pred_denorm
 
     def train_step(self,data):
-        w = self.w
-        r_norm_factor = self.r_norm_factor
-        x_true, (x_orig,r_orig,f_true) = data
-        trainable_vars = self.trainable_variables
-
-        if w == 1:
-
-            with tf.GradientTape(persistent=True) as tape_d:
-                tape_d.watch(trainable_vars)
-                x_pred = self(x_true, training=True)
-                loss_x = self.diff_loss(x_true, x_pred)
-
-            # Compute gradients
-            gradients_loss_x = tape_d.gradient(loss_x, trainable_vars)
-        
-            total_gradients = []
-            for i in range(len(gradients_loss_x)):
-                total_gradients.append(gradients_loss_x[i])
-            
-            # Backpropagation
-            self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
-
-            loss_x_tracker.update_state(loss_x)
-
-            return {"loss_x": loss_x_tracker.result()}
-        
-        else:
-
-            b_true=r_orig/1e9
-
-            grad_loss_x, jac_u, loss_x, x_pred_denorm = self.get_jacobians(trainable_vars, x_true)
-
-            A_pred, b_pred = self.get_r(x_pred_denorm,f_true)
-            A_pred  = tf.constant(A_pred)
-
-            err_r = b_true-b_pred
-            err_r = tf.expand_dims(tf.constant(err_r),axis=0)
-            loss_r = self.diff_loss(b_true, b_pred)
-
-            total_gradients = []
-
-            i=0
-            for layer in jac_u:
-
-                l_shape=layer.shape
-
-                last_dim_size=1
-                for dim in l_shape[2:]:
-                    last_dim_size=last_dim_size*dim
-                layer=tf.reshape(layer,(l_shape[0],l_shape[1],last_dim_size))
-                
-                pre_grad=tf.linalg.matmul(A_pred,tf.squeeze(layer,axis=0),a_is_sparse=True)
-
-                # print('err_r:', err_r)
-
-                aux_err=tf.multiply(err_r,self.residual_weights_vec)
-                # print('aux_err:', aux_err)
-                grad_loss_r=tf.matmul(aux_err,pre_grad)*(-2)
-                
-                grad_loss_r=tf.reshape(grad_loss_r, l_shape[2:])
-
-                # self.max_grad_diff=max(np.max((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])), self.max_grad_diff)
-                # print(np.mean((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
-                # print(np.min((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
-                # print(np.max((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
-
-                # total_gradients.append(w*grad_loss_x[i]+(1-w)*grad_loss_r/r_norm_factor)
-                # print('x:', grad_loss_x[i])
-                # print('r:', grad_loss_r)
-                total_gradients.append(grad_loss_x[i]+w*grad_loss_r/r_norm_factor)
-                
-                i+=1
-
-            # print(total_gradients)
-
-            self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
-
-            # Compute our own metrics
-            loss_x_tracker.update_state(loss_x)
-            loss_r_tracker.update_state(loss_r)
-
-            return {"loss_x": loss_x_tracker.result(), "err_r": loss_r_tracker.result()}
+        print('Train routine not implemented within Keras, the one from Scipy should be used instead')
 
 
     def test_step(self, data):
@@ -385,29 +304,33 @@ class Conv2D_Residual_AE():
             r_norm_schedule=r_norm_const_schedule
         else: print('Unvalid r_norm scheduler')
 
-        early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss_x', patience=5)
-        log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-        checkpoint_best_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_x",mode="min")
-        checkpoint_last_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/last/weights.h5",save_weights_only=True,save_freq="epoch")
-        lr_w_scheduler_callback = CustomLearningRateScheduler(lr_schedule, w_schedule, r_norm_schedule ,0)
+        # early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss_x', patience=5)
+        # log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        # # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+        # checkpoint_best_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_x",mode="min")
+        # checkpoint_last_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/last/weights.h5",save_weights_only=True,save_freq="epoch")
+        # lr_w_scheduler_callback = CustomLearningRateScheduler(lr_schedule, w_schedule, r_norm_schedule ,0)
 
-        history = model.fit(
-            input_data, grad_data,
-            epochs=ae_config["epochs"],
-            shuffle=True,
-            batch_size=ae_config["batch_size"],
-            validation_data=(val_input,val_truth),
-            callbacks = [
-                lr_w_scheduler_callback,
-                # early_stop_callback,
-                # tensorboard_callback,
-                checkpoint_best_callback,
-                checkpoint_last_callback,
-            ]
-        )
+        # history = model.fit(
+        #     input_data, grad_data,
+        #     epochs=ae_config["epochs"],
+        #     shuffle=True,
+        #     batch_size=ae_config["batch_size"],
+        #     validation_data=(val_input,val_truth),
+        #     callbacks = [
+        #         lr_w_scheduler_callback,
+        #         # early_stop_callback,
+        #         # tensorboard_callback,
+        #         checkpoint_best_callback,
+        #         checkpoint_last_callback,
+        #     ]
+        # )
 
-        return history
+
+        train_function=make_train_function(model, maxiter=ae_config["epochs"])
+        result = train_function((input_data, grad_data))
+
+        return result
 
     def test_network(self, model, input_data, grad_data):
         result = model.evaluate(input_data, grad_data, batch_size=1)

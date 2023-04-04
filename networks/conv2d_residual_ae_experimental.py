@@ -41,6 +41,7 @@ class Conv2DResidualAEModel(keras.Model):
             print('WARNING: USING EXPERIMENTAL R LOSS')
 
     def set_config_values(self, ae_config, R, data_normalizer):
+        print('Mean R:', np.mean(R[:,4:]))
         self.data_normalizer=data_normalizer
         # self.loss_combination_method = ae_config["loss_combination_method"]
 

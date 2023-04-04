@@ -96,7 +96,10 @@ class DenseResidualAEModel(keras.Model):
         return (y_true - y_pred) ** 2
 
     def set_residual_weighting_vec(self, R_orig):
-        self.residual_weights_vec=np.ones(R_orig.shape[1], dtype=np.float64)
+        self.residual_weights_vec=[1e-3 for i in range(4)]
+        self.residual_weights_vec=self.residual_weights_vec+[1e-6 for i in range(48)]
+        self.residual_weights_vec=np.array(self.residual_weights_vec)
+        # self.residual_weights_vec=np.ones(R_orig.shape[1], dtype=np.float64)
         print('residual_weights_vec', self.residual_weights_vec, self.residual_weights_vec.shape)
         # init_vec = np.mean(np.abs(R_orig), axis=0)
         # print('residual_weights_vec', init_vec)
@@ -188,12 +191,13 @@ class DenseResidualAEModel(keras.Model):
                 # total_gradients.append(w*grad_loss_x[i]+(1-w)*grad_loss_r)
                 # if i==0 or i== 3 or i== 8 or i ==11:
                 #     # print((grad_loss_x[i]-grad_loss_r)/grad_loss_x[i])
-                #     print('R grads:', grad_loss_r/100)
-                #     print('X grads:',grad_loss_x[i])
+                # print('R grads:', grad_loss_r)
+                # print('X grads:',grad_loss_x[i])
                 # print(np.mean((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
                 
                 # self.max_grad_diff=max(np.max((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])), self.max_grad_diff)
-                total_gradients.append(w*grad_loss_x[i]+(1-w)*grad_loss_r/r_norm_factor)
+                # total_gradients.append(w*grad_loss_x[i]+(1-w)*grad_loss_r/r_norm_factor)
+                total_gradients.append(grad_loss_x[i]+w*grad_loss_r/r_norm_factor)
                 
                 i+=1
             

@@ -126,7 +126,7 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'r_as_regularizer_wbinary_experimental',
+        "name": 'test_run_wbine-12',
         "encoding_size": 1,
         "hidden_layers": ((16,(2,5),(1,2)),
                           (32,(2,5),(1,2))
@@ -134,9 +134,10 @@ if __name__ == "__main__":
         "batch_size": 1,
         "epochs": 100,
         "normalization_strategy": 'channel_range',  # ['feature_stand','channel_range']
-        "residual_loss_ratio": ('binary', 0.0, 0.1, 4), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        # "residual_loss_ratio": ('binary', 0.0, 0.0000000001, 2), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "residual_loss_ratio": ('binary', 0.0, 1.0e-12, 4), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "residual_norm_factor": ('const',1.0e7),
+        "residual_norm_factor": ('const',-1.7180135774021191e-09),
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]
         "dataset_path": 'datasets_low/',
         "models_path": 'saved_models_conv2d_experimental/',
@@ -189,13 +190,9 @@ if __name__ == "__main__":
     autoencoder, encoder, decoder = kratos_network.define_network(S, ae_config)
     autoencoder.fake_simulation = fake_simulation # Attach the fake sim
 
-    print(autoencoder.trainable_variables[0])
-
     if not ae_config["finetune_from"] is None:
         print('======= Loading saved weights =======')
         autoencoder.load_weights(ae_config["finetune_from"]+'model_weights.h5')
-
-    print(autoencoder.trainable_variables[0])
 
     autoencoder.set_config_values(ae_config, np.concatenate((R_train, R_test), axis=0), data_normalizer)
 
