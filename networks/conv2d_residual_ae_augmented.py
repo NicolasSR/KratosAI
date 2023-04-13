@@ -22,6 +22,7 @@ from utils.custom_scheduler import CustomLearningRateScheduler
 # Create a custom Model:
 loss_x_tracker = keras.metrics.Mean(name="loss_x")
 loss_r_tracker = keras.metrics.Mean(name="err_r")
+loss_r_augm_tracker = keras.metrics.Mean(name="loss_r_augm")
 
 class Conv2DResidualAEModel(keras.Model):
 
@@ -36,12 +37,14 @@ class Conv2DResidualAEModel(keras.Model):
         self.residual_weights_vec=None
         self.r_norm_factor=0
         self.max_grad_diff=1
+        self.augmentation_factor=0
 
     def set_config_values(self, ae_config, R, data_normalizer):
         print('Mean R:', np.mean(R[:,4:]))
         print('Mean R:', np.mean(R[:,:4]))
         self.set_residual_weighting_vec(R)
         self.data_normalizer=data_normalizer
+        self.augmentation_factor=ae_config["augmentation_factor"]
         # self.loss_combination_method = ae_config["loss_combination_method"]
 
     def project_prediction(self, y_pred, f_true, modelpart):
@@ -125,48 +128,99 @@ class Conv2DResidualAEModel(keras.Model):
         grad_loss_x = tape_d.gradient(loss_x,trainable_vars)
         jac_u = tape_d.jacobian(x_pred_denorm, trainable_vars, unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
         return grad_loss_x, jac_u, loss_x, x_pred_denorm
+    
+    @tf.function
+    def get_jacobians_augmented(self, trainable_vars, x_aug):
+        with tf.GradientTape(persistent=True) as tape_d:
+            tape_d.watch(trainable_vars)
+            x_aug_pred = self(x_aug, training=True)
+            x_aug_pred_flat = self.data_normalizer.reorganize_into_original_tf(x_aug_pred)
+            x_aug_pred_denorm = self.data_normalizer.denormalize_data_tf(x_aug_pred_flat)
+
+        jac_u = tape_d.jacobian(x_aug_pred_denorm, trainable_vars, unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
+        return jac_u, x_aug_pred_denorm
+    
+    def apply_random_noise(self, x_true):
+        v=np.random.rand(np.shape(x_true))
+        v=v/np.linalg.norm(v)
+        eps=np.random.rand()*1e-4
+        v=v*eps
+
+        print(v)
+        print(np.linalg.norm(v))
+        print(eps)
+        return v
 
     def train_step(self,data):
         w = self.w
         r_norm_factor = self.r_norm_factor
         x_true, (x_orig,r_orig,f_true) = data
         trainable_vars = self.trainable_variables
-
-        if w == 0.0:
-
-            with tf.GradientTape(persistent=True) as tape_d:
-                tape_d.watch(trainable_vars)
-                x_pred = self(x_true, training=True)
-                loss_x = self.diff_loss(x_true, x_pred)
-
-            # Compute gradients
-            gradients_loss_x = tape_d.gradient(loss_x, trainable_vars)
         
-            total_gradients = []
-            for i in range(len(gradients_loss_x)):
-                total_gradients.append(gradients_loss_x[i])
+
+        ## Training via actual snapshot
+        b_true=r_orig/1e9
+
+        grad_loss_x, jac_u, loss_x, x_pred_denorm = self.get_jacobians(trainable_vars, x_true)
+
+        A_pred, b_pred = self.get_r(x_pred_denorm,f_true)
+        A_pred  = tf.constant(A_pred)
+
+        err_r = b_true-b_pred
+        err_r = tf.expand_dims(tf.constant(err_r),axis=0)
+        loss_r = self.diff_loss(b_true, b_pred)
+
+        total_gradients = []
+
+        i=0
+        for layer in jac_u:
+
+            l_shape=layer.shape
+
+            last_dim_size=1
+            for dim in l_shape[2:]:
+                last_dim_size=last_dim_size*dim
+            layer=tf.reshape(layer,(l_shape[0],l_shape[1],last_dim_size))
             
-            # Backpropagation
-            self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
+            pre_grad=tf.linalg.matmul(A_pred,tf.squeeze(layer,axis=0),a_is_sparse=True)
 
-            loss_x_tracker.update_state(loss_x)
+            # print('err_r:', err_r)
 
-            return {"loss_x": loss_x_tracker.result()}
-        
-        else:
+            aux_err=tf.multiply(err_r,self.residual_weights_vec)
+            # print('aux_err:', aux_err)
+            grad_loss_r=tf.matmul(aux_err,pre_grad)*(-2)
+            
+            grad_loss_r=tf.reshape(grad_loss_r, l_shape[2:])
 
-            b_true=r_orig/1e9
+            # self.max_grad_diff=max(np.max((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])), self.max_grad_diff)
+            # print(np.mean((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
+            # print(np.min((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
+            # print(np.max((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
 
-            grad_loss_x, jac_u, loss_x, x_pred_denorm = self.get_jacobians(trainable_vars, x_true)
+            # print('x:', grad_loss_x[i])
+            # print('r:', grad_loss_r)
+            total_gradients.append(grad_loss_x[i]+w*grad_loss_r/r_norm_factor)
+            
+            i+=1
 
-            A_pred, b_pred = self.get_r(x_pred_denorm,f_true)
+        ## Training via augmented snapshots
+        loss_r_augm = 0
+        for aug_iter in range(self.augmentation_factor):
+            
+            x_app_flat_denorm=self.apply_random_noise(x_orig)
+            x_app=self.data_normalizer.reorganize_into_channels(self.data_normalizer.normalize_data_tf(x_app_flat_denorm))
+
+            jac_u, x_aug_pred_denorm = self.get_jacobians_augmented(self, trainable_vars, x_app)
+            
+            _, r_app_true = self.get_r(x_app_flat_denorm, f_true)
+            b_true = r_app_true
+
+            A_pred, b_pred = self.get_r(x_aug_pred_denorm,f_true)
             A_pred  = tf.constant(A_pred)
 
             err_r = b_true-b_pred
             err_r = tf.expand_dims(tf.constant(err_r),axis=0)
-            loss_r = self.diff_loss(b_true, b_pred)
-
-            total_gradients = []
+            loss_r_augm += self.diff_loss(b_true, b_pred)/self.augmentation_factor
 
             i=0
             for layer in jac_u:
@@ -180,41 +234,30 @@ class Conv2DResidualAEModel(keras.Model):
                 
                 pre_grad=tf.linalg.matmul(A_pred,tf.squeeze(layer,axis=0),a_is_sparse=True)
 
-                # print('err_r:', err_r)
-
                 aux_err=tf.multiply(err_r,self.residual_weights_vec)
-                # print('aux_err:', aux_err)
-                grad_loss_r=tf.matmul(aux_err,pre_grad)*(-2)
-                
-                grad_loss_r=tf.reshape(grad_loss_r, l_shape[2:])
+                grad_loss_r_aug=tf.matmul(aux_err,pre_grad)*(-2)
+                grad_loss_r_aug=tf.reshape(grad_loss_r_aug, l_shape[2:])
 
-                # self.max_grad_diff=max(np.max((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])), self.max_grad_diff)
-                # print(np.mean((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
-                # print(np.min((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
-                # print(np.max((np.abs(grad_loss_r)-np.abs(grad_loss_x[i]))/np.abs(grad_loss_x[i])))
-
-                # print('x:', grad_loss_x[i])
-                # print('r:', grad_loss_r)
-                total_gradients.append(grad_loss_x[i]+w*grad_loss_r/r_norm_factor)
+                total_gradients[i]=total_gradients[i]+grad_loss_r_aug/self.augmentation_factor
                 
                 i+=1
 
-            # print(total_gradients)
+        self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
 
-            self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
+        # Compute our own metrics
+        loss_x_tracker.update_state(loss_x)
+        loss_r_tracker.update_state(loss_r)
+        loss_r_augm_tracker.update_state(loss_r_augm)
 
-            # Compute our own metrics
-            loss_x_tracker.update_state(loss_x)
-            loss_r_tracker.update_state(loss_r)
-
-            return {"loss_x": loss_x_tracker.result(), "err_r": loss_r_tracker.result()}
+        return {"loss_x": loss_x_tracker.result(), "err_r": loss_r_tracker.result(), "loss_r_augm:": loss_r_augm_tracker.result()}
+            
 
 
     def test_step(self, data):
         w = self.w
         x_true, (r_orig,f_true) = data
 
-        if w == 0.0:
+        if w == 1:
 
             x_pred = self(x_true, training=True)
             loss_x = self.diff_loss(x_true, x_pred)
@@ -258,10 +301,8 @@ class Conv2DResidualAEModel(keras.Model):
         # or at the start of `evaluate()`.
         # If you don't implement this property, you have to call
         # `reset_states()` yourself at the time of your choosing.
-        if self.w==1:
-            return [loss_x_tracker]
-        else:
-            return [loss_x_tracker, loss_r_tracker]
+        
+        return [loss_x_tracker, loss_r_tracker, loss_r_augm_tracker]
 
 
 class Conv2D_Residual_AE():

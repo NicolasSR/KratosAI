@@ -40,6 +40,8 @@ from utils.randomized_singular_value_decomposition import RandomizedSingularValu
 from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_FeatureStand
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error
 
+from sklearn.model_selection import train_test_split
+
 import kratos_io
 from networks.conv2d_residual_ae import Conv2D_Residual_AE
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error, mean_l2_error, forbenius_error
@@ -102,8 +104,8 @@ if __name__ == "__main__":
     kratos_network = Conv2D_Residual_AE()
 
     # Get input data
-    S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input(ae_config['dataset_path'])
-    print('Shape S_flat_orig: ', S_flat_orig.shape)
+    _, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input(ae_config['dataset_path'])
+    # print('Shape S_flat_orig: ', S_flat_orig.shape)
     print('Shape S_flat_orig_train:', S_flat_orig_train.shape)
     print('Shape S_flat_orig_test:', S_flat_orig_test.shape)
     print('Shape R_train: ', R_train.shape)
@@ -111,8 +113,9 @@ if __name__ == "__main__":
     print('Shape F_train: ', F_train.shape)
     print('Shape F_test: ', F_test.shape)
 
-    F=np.concatenate((F_train, F_test), axis=0)
-    R=np.concatenate((R_train, R_test), axis=0)
+    S_flat_orig=np.concatenate((S_flat_orig_test, S_flat_orig_train), axis=0)
+    F=np.concatenate((F_test, F_train), axis=0)
+    R=np.concatenate((R_test, R_train), axis=0)
 
     data_normalizer=normalizer_selector(ae_config["normalization_strategy"])
     data_normalizer.configure_normalization_data(S_flat_orig)
@@ -140,7 +143,7 @@ if __name__ == "__main__":
 
     print('======= Loading saved weights =======')
     autoencoder.load_weights(data_path+'model_weights.h5')
-    encoder.load_weights(data_path+'encoder_model_weights.h5')
+    # encoder.load_weights(data_path+'encoder_model_weights.h5')
 
     def calculate_R_norm_error(S_input, R_true, F_true):
         R_true=R_true/1e9
@@ -202,35 +205,40 @@ if __name__ == "__main__":
         plt.plot(r_pred[0])
         plt.show()
 
-    sample_id = 0
+    max_F=np.max(abs(F[:,1]))
+    min_F=np.min(abs(F[:,1]))
+
+    print(max_F)
+    print(min_F)
+
+    sample_min = np.argmin(abs(F[:,1]))
+    print(F[sample_min])
+    print_x_and_r_vecs(sample_min)
+
+    sample_id = np.argmin(abs(F[:,1]+max_F/3))
     print(sample_id)
     print(F[sample_id])
     print_x_and_r_vecs(sample_id)
 
-    sample_id = S_train.shape[0]//3
+    sample_id = np.argmin(abs(F[:,1]+max_F/2))
     print(sample_id)
     print(F[sample_id])
     print_x_and_r_vecs(sample_id)
 
-    sample_id = S_train.shape[0]//2
+    sample_id = np.argmin(abs(F[:,1]+max_F*2/3))
     print(sample_id)
     print(F[sample_id])
     print_x_and_r_vecs(sample_id)
 
-    sample_id = S_train.shape[0]*2//3
-    print(sample_id)
-    print(F[sample_id])
-    print_x_and_r_vecs(sample_id)
+    sample_max = np.argmax(abs(F[:,1]))
+    print(sample_max)
+    print(F[sample_max])
+    print_x_and_r_vecs(sample_max)
 
-    sample_id = S_train.shape[0]-1
-    print(sample_id)
-    print(F[sample_id])
-    print_x_and_r_vecs(sample_id)
-
-    sample_id = S_train.shape[0]+100
-    print(sample_id)
-    print(F[sample_id])
-    print_x_and_r_vecs(sample_id)
+    # sample_id = S_test.shape[0]+1000
+    # print(sample_id)
+    # print(F[sample_id])
+    # print_x_and_r_vecs(sample_id)
 
     def draw_x_error_image():
         S_pred = autoencoder(S).numpy()
@@ -249,8 +257,10 @@ if __name__ == "__main__":
 
     draw_x_error_image()
 
-    print('Test errors')
-    calculate_R_norm_error(S_test,R_test,F_test)
+    print('Test errors (only for a sample of the test dataset)')
+    reduced_size=10000/S_test.shape[0]
+    S_test_red, _, R_test_red, _, F_test_red, _ = train_test_split(S_test,R_test,F_test, test_size=1-reduced_size, random_state=62)
+    calculate_R_norm_error(S_test_red,R_test_red,F_test_red)
     print('Train errors')
     calculate_R_norm_error(S_train,R_train,F_train)
 

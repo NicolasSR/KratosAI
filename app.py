@@ -30,6 +30,8 @@ from utils.randomized_singular_value_decomposition import RandomizedSingularValu
 from utils.normalizers import AE_Normalizer_ChannelRange, AE_Normalizer_FeatureStand, AE_Normalizer_None
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error
 
+from sklearn.model_selection import train_test_split
+
 import kratos_io
 from networks.dense_residual_ae import Dense_Residual_AE
 
@@ -49,6 +51,10 @@ def prepare_input(dataset_path):
     R_test=np.load(dataset_path+'R_test.npy')
     F_train=np.load(dataset_path+'F_train.npy')[:,0,:]
     F_test=np.load(dataset_path+'F_test.npy')[:,0,:]
+
+    test_size=10000/S_orig.shape[0]
+
+    S_orig_test, _, R_test, _, F_test, _ = train_test_split(S_orig_test,R_test,F_test, test_size=1-test_size, random_state=370)
 
     return S_orig, S_orig_train, S_orig_test, R_train, R_test, F_train, F_test
 
@@ -98,7 +104,7 @@ if __name__ == "__main__":
         "residual_loss_ratio": ('const', 0.001), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "learning_rate": ('const', 1e-3), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
-        "dataset_path": 'datasets_low/',
+        "dataset_path": 'datasets_low_big/',
         "models_path": 'saved_models_new/',
         "finetune_from": None,
         "residual_grad_normalisation": None # For now it is fixed to the identity

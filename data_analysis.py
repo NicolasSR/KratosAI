@@ -157,11 +157,6 @@ if __name__ == "__main__":
         print('X. Mean rel L2 error:', l2_error)
         print('X. Rel Forb. error:', forb_error)
 
-    print('Test errors')
-    calculate_R_norm_error(S_test,R_test,F_test)
-    print('Train errors')
-    calculate_R_norm_error(S_train,R_train,F_train)
-
     # print('Test errors')
     # calculate_X_norm_error(S_test)
     # print('Train errors')
@@ -267,6 +262,11 @@ if __name__ == "__main__":
         plt.show()
 
     draw_x_error_image()
+
+    print('Test errors')
+    calculate_R_norm_error(S_test,R_test,F_test)
+    print('Train errors')
+    calculate_R_norm_error(S_train,R_train,F_train)
 
     def output_to_GID():
         # With Kratos enabled this prints the predicted results in mdpa format for GiD
