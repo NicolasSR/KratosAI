@@ -1,3 +1,6 @@
+*.npy
+*.post.lst
+*.post.bin
 **/__pycache__/
 /saved_models/
 /saved_models_new/
@@ -9,7 +12,4 @@
 /datasets_low/
 /datasets_low_big/
 /datasets_rommanager/
-*.npy
-*.post.lst
-*.post.bin
 /saved_models_conv2d_augm/
