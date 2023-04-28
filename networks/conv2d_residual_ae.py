@@ -44,6 +44,9 @@ class Conv2DResidualAEModel(keras.Model):
         self.data_normalizer=data_normalizer
         # self.loss_combination_method = ae_config["loss_combination_method"]
 
+    def set_config_values_eval(self, data_normalizer):
+        self.data_normalizer=data_normalizer
+
     def project_prediction(self, y_pred, f_true, modelpart):
         values = y_pred[0]
         f_value=f_true[0]
@@ -250,6 +253,14 @@ class Conv2DResidualAEModel(keras.Model):
             b_list.append(b)
         b_array=np.array(b_list)
         return b_array
+    
+    def predict_snapshot(self,snapshot):
+        norm_snapshot=self.data_normalizer.normalize_data(snapshot)
+        norm_2d_snapshot=self.data_normalizer.reorganize_into_channels(norm_snapshot)
+        norm_2d_pred=self.predict(norm_2d_snapshot)
+        norm_pred=self.data_normalizer.reorganize_into_original(norm_2d_pred)
+        pred=self.data_normalizer.normalize_data(norm_pred)
+        return pred
 
     @property
     def metrics(self):
@@ -328,6 +339,12 @@ class Conv2D_Residual_AE():
         a = network.predict(snapshot)
 
         return a
+    
+    def encode_snapshot(self, encoder, autoencoder, snapshot):
+        norm_snapshot=autoencoder.data_normalizer.normalize_data(snapshot)
+        norm_2d_snapshot=autoencoder.data_normalizer.reorganize_into_channels(norm_snapshot)
+        out=encoder.predict(norm_2d_snapshot)
+        return out
 
     def train_network(self, model, input_data, grad_data, val_input, val_truth, ae_config):
         # Train the model
@@ -391,10 +408,10 @@ class Conv2D_Residual_AE():
             r_norm_schedule=r_norm_const_schedule
         else: print('Unvalid r_norm scheduler')
 
-        early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss_x', patience=5)
+        early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_err_r', patience=5)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-        checkpoint_best_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_x",mode="min")
+        checkpoint_best_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_err_r",mode="min")
         checkpoint_last_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/last/weights.h5",save_weights_only=True,save_freq="epoch")
         lr_w_scheduler_callback = CustomLearningRateScheduler(lr_schedule, w_schedule, r_norm_schedule ,0)
 
@@ -424,13 +441,10 @@ class Conv2D_Residual_AE():
         with tf.GradientTape(persistent=True) as tape_d:
             tape_d.watch(in_tf_var)
             x_pred = decoder_model(in_tf_var)
-            x_pred_denorm = autoencoder_model.denormalize_data(x_pred)
+            x_pred_flat = autoencoder_model.data_normalizer.reorganize_into_original_tf(x_pred)
+            x_pred_denorm = autoencoder_model.data_normalizer.denormalize_data_tf(x_pred_flat)
 
         jac = tape_d.jacobian(x_pred_denorm, in_tf_var, unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
-        # print(in_tf_var)
-        # print(jac)
-        # print(jac[0,:,0,:])
-        # print('Jacobian shape:', jac[0,:,0,:].shape)
         return jac[0,:,0,:].numpy()
 
     def compute_full_gradient():

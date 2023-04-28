@@ -24,7 +24,6 @@ import KratosMultiphysics.RomApplication as KratosROM
 from KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_analysis import StructuralMechanicsAnalysis
 
 # from KratosMultiphysics.RomApplication.networks import gradient_shallow as gradient_shallow_ae
-import networks.dense_residual_ae as dense_residual_ae
 from KratosMultiphysics.RomApplication import kratos_io as kratos_io
 from KratosMultiphysics.RomApplication import clustering as clustering
 from KratosMultiphysics.RomApplication import python_solvers_wrapper_rom as solver_wrapper
@@ -34,6 +33,10 @@ from KratosMultiphysics.RomApplication.hrom_training_utility import HRomTraining
 from KratosMultiphysics.RomApplication.calculate_rom_basis_output_process import CalculateRomBasisOutputProcess
 
 from KratosMultiphysics.RomApplication.randomized_singular_value_decomposition import RandomizedSingularValueDecomposition
+
+# import networks.dense_residual_ae as dense_residual_ae
+from networks.conv2d_residual_ae import  Conv2D_Residual_AE
+from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_FeatureStand
 
 def custom_loss(y_true, y_pred):
     y_diff = y_true-y_pred
@@ -51,53 +54,33 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
             self.first_iter=True
 
         def prepare_input(self, data_inputs_files):
-            S = None
-            for s in data_inputs_files:
-                a = np.load(s)
-                if S is None:
-                    S = a
-                else:
-                    S = np.concatenate((S, a), axis=0)
-            S=S.T
-            S=S[4:,:]
-
+            S=np.load(data_inputs_files)[:,4:]
             return S
         
-        def normalize_snapshots_data(self, S, normalization_strategy):
-            if normalization_strategy == 'per_feature':
-                feat_means = []
-                feat_stds = []
-                print('Normalizing each feature in S')
-                S_df = pd.DataFrame(S.T)
-                for i in range(len(S_df.columns)):
-                    feat_means.append(S_df[i].mean())
-                    feat_stds.append(S_df[i].std())
-                self.autoencoder.set_normalization_data(normalization_strategy, (feat_means, feat_stds))
-            elif normalization_strategy == 'global':
-                print('Applying global min-max normalization on S')
-                data_min = np.min(S)
-                data_max = np.max(S)
-                self.autoencoder.set_normalization_data(normalization_strategy, (data_min, data_max))
+        def normalizer_selector(self, normalization_strategy):
+            if normalization_strategy == 'channel_range':
+                return Conv2D_AE_Normalizer_ChannelRange()
+            elif normalization_strategy == 'feature_stand':
+                return Conv2D_AE_Normalizer_FeatureStand()
             else:
-                print('No normalization')
-            SNorm = self.autoencoder.normalize_data(S.T)
-            return SNorm.T
+                print('Normalization strategy is not valid')
+                return None
 
         ### NN ##
         def _CreateModel(self):
             # List of files to read from
-            data_inputs_files = ["datasets/FOM.npy"]
+            data_inputs_files = "datasets_rommanager/FOM.npy"
 
             S = self.prepare_input(data_inputs_files)
             print('S shape:', S.shape)
 
-            external_sets_length=int(S.shape[1]/6)
-            S_test_low=S[:,:external_sets_length]
-            S_test_high=S[:,-external_sets_length:]
-            S=S[:,external_sets_length:-external_sets_length]
-            print('Shape S: ', S.shape)
-            print('Shape S_test_high: ', S_test_high.shape)
-            print('Shape S_test_low: ', S_test_low.shape)
+            # external_sets_length=int(S.shape[1]/6)
+            # S_test_low=S[:,:external_sets_length]
+            # S_test_high=S[:,-external_sets_length:]
+            # S=S[:,external_sets_length:-external_sets_length]
+            # print('Shape S: ', S.shape)
+            # print('Shape S_test_high: ', S_test_high.shape)
+            # print('Shape S_test_low: ', S_test_low.shape)
             
             # Some configuration
             self.config = {
@@ -109,25 +92,34 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
             }
 
             # Select the netwrok to use
-            self.kratos_network = dense_residual_ae.GradientShallow()
+            self.kratos_network = Conv2D_Residual_AE()
+
+            model_path="saved_models_conv2d/"
 
             print('======= Loading saved ae config =======')
-            with open("saved_models/ae_config.npy", "rb") as ae_config_file:
+            with open(model_path+"ae_config.npy", "rb") as ae_config_file:
                 ae_config = np.load(ae_config_file,allow_pickle='TRUE').item()
+
+            # Normalize the snapshots according to the desired normalization mode
+            # SNorm=S.copy()
+            # SNorm = self.normalize_snapshots_data(SNorm, ae_config["normalization_strategy"])
+            data_normalizer=self.normalizer_selector(ae_config["normalization_strategy"])
+            data_normalizer.configure_normalization_data(S)
+
+            S_norm=data_normalizer.normalize_data(S)
+            S_norm_2D=data_normalizer.reorganize_into_channels(S_norm)
 
             # Load the autoencoder model
             print('======= Instantiating new autoencoder =======')
-            self.autoencoder, self.encoder, self.decoder = self.kratos_network.define_network(S, ae_config)
+            print(ae_config)
+            self.autoencoder, self.encoder, self.decoder = self.kratos_network.define_network(S_norm_2D, ae_config)
 
             print('======= Loading saved weights =======')
-            self.autoencoder.load_weights('saved_models/model_weights.h5')
-            self.encoder.load_weights('saved_models/encoder_model_weights.h5')
-            self.decoder.load_weights('saved_models/decoder_model_weights.h5')
+            self.autoencoder.load_weights(model_path+'model_weights.h5')
+            # self.encoder.load_weights(model_path+'encoder_model_weights.h5')
+            # self.decoder.load_weights(model_path+'decoder_model_weights.h5')
 
-            # Normalize the snapshots according to the desired normalization mode
-            SNorm=S.copy()
-            SNorm = self.normalize_snapshots_data(SNorm, ae_config["normalization_strategy"])
-
+            self.autoencoder.set_config_values_eval(data_normalizer)
 
             """ # Obtain Clusters
             # -- Currenctly this function is quite useless because we are always using the classical SVD with 1 cluster.
@@ -264,71 +256,83 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
             # Generate the input snapshot
             
             if self.first_iter:
-                S=[
-                 7.41368540e-03, -1.58596070e-02, -1.17056207e-02, -1.39700617e-02,
-                 8.72809942e-03, -6.10772234e-02, -2.76358538e-02, -5.55512169e-02,
-                 -8.52063338e-04, -1.34367120e-01, -5.23636480e-02, -1.24024755e-01,
-                 -2.50534323e-02, -2.33690737e-01, -8.96987097e-02, -2.18210254e-01,
-                 -6.65904266e-02, -3.56930785e-01, -1.42580957e-01, -3.36713143e-01,
-                 -1.27237001e-01, -5.02143015e-01, -2.13047333e-01, -4.78165671e-01,
-                 -2.04748696e-01, -6.61898171e-01, -2.94903615e-01, -6.28291137e-01,
-                 -2.90175914e-01, -8.19850190e-01, -3.82508741e-01, -7.77918421e-01,
-                 -3.80033110e-01, -9.73827824e-01, -4.73120294e-01, -9.24972434e-01,
-                 -4.71685222e-01, -1.12278060e+00, -5.64632088e-01, -1.06835024e+00,
-                 -5.63213426e-01, -1.26629278e+00, -6.55473680e-01, -1.20752549e+00,
-                 -6.53235019e-01, -1.40429161e+00, -7.45267213e-01, -1.34342165e+00]
+                # S = [2.84322712e-06, -4.55168069e-06, -2.91819193e-06, -4.67132520e-06,
+                #  5.50219914e-06, -1.77873238e-05, -5.73516507e-06, -1.82784288e-05,
+                #  8.04057521e-06, -4.01316202e-05, -8.43360036e-06, -4.13274705e-05,
+                #  1.04315097e-05, -7.20639649e-05, -1.09825867e-05, -7.43295393e-05,
+                #  1.26398376e-05, -1.14051435e-04, -1.33402261e-05, -1.17773885e-04,
+                #  1.46219209e-05, -1.66500193e-04, -1.54487345e-05, -1.72063521e-04,
+                #  1.63808212e-05, -2.27363868e-04, -1.70845500e-05, -2.32125477e-04,
+                #  1.77071633e-05, -2.90368808e-04, -1.83462357e-05, -2.94128369e-04,
+                #  1.86508592e-05, -3.53999347e-04, -1.92738243e-05, -3.56664759e-04,
+                #  1.92631152e-05, -4.17124598e-04, -1.99059630e-05, -4.18688927e-04,
+                #  1.95893029e-05, -4.78920955e-04, -2.02778811e-05, -4.79435219e-04,
+                #  1.96646313e-05, -5.38802923e-04, -2.03895760e-05, -5.38781761e-04]
                 
-                # S=[
-                #  0.00257479, -0.00442512,
-                #  -0.0029867, -0.00434256, 0.00453559, -0.01734126, -0.00632606, -0.01718823,
-                #  0.00546122, -0.0391235, -0.01046927, -0.03897886, 0.00487612, -0.07012932,
-                #  -0.01585522, -0.07014718, 0.00232162, -0.11068401, -0.02289253, -0.11109575,
-                #  -0.0026172, -0.16104522, -0.03192278, -0.1621503, -0.00988217, -0.21917003,
-                #  -0.04224098, -0.21852432, -0.01870639, -0.27902319, -0.05329543, -0.27660969,
-                #  -0.02861475, -0.33921241, -0.06473496, -0.33513776, -0.03917904, -0.39873466,
-                #  -0.07624921, -0.39318497, -0.05004142, -0.45688366, -0.08757942, -0.45008731,
-                #  -0.06091876, -0.5131715, -0.09857205, -0.50580146]
-                # Force = 2e6
+                # Force = 2e3
+
+                S = [0.0008346 ,
+                 -0.00136451, -0.00088975, -0.00138119,  0.00157316, -0.00533982,
+                 -0.0017938 , -0.00542661,  0.0021886 , -0.01205465, -0.00275256,
+                 -0.01228803,  0.00262913, -0.02164873, -0.00380276, -0.02211904,
+                 0.00284205, -0.03425728, -0.00497628, -0.03506712,  0.00277643,
+                 -0.04999675, -0.00629531, -0.05125497,  0.00243684, -0.06825138,
+                 -0.00764496, -0.06917333,  0.00185296, -0.08713587, -0.00899139,
+                 -0.08767766,  0.00108142, -0.1061973 , -0.01030751, -0.1063499 ,
+                 0.00017523, -0.12509937, -0.01156975, -0.12487958, -0.00082028,
+                 -0.14359828, -0.01275892, -0.14303933, -0.0018692 , -0.16152126,
+                 -0.01385852, -0.16079624]
+                
+                # Force = 6e5 (index 299)
                 
                 self.first_iter=False
             
             else:
+                # S = []
+                # for node in computing_model_part.Nodes:
+                #     # if not node.IsFixed(KratosMultiphysics.DISPLACEMENT_X):
+                #     #     S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_X))
+                #     # else:
+                #     #     print('Fixed x')
+                #     # if not node.IsFixed(KratosMultiphysics.DISPLACEMENT_Y):
+                #     #     S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_Y))
+                #     # else:
+                #     #     print('Fixed y')
+                #     if node.Id >= 3:
+                #         # S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_X))
+                #         # S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_Y))
+                #         S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_X)*1e3)
+                #         S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_Y)*1e3)
+
                 S = []
                 for node in computing_model_part.Nodes:
-                    # if not node.IsFixed(KratosMultiphysics.DISPLACEMENT_X):
-                    #     S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_X))
-                    # else:
-                    #     print('Fixed x')
-                    # if not node.IsFixed(KratosMultiphysics.DISPLACEMENT_Y):
-                    #     S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_Y))
-                    # else:
-                    #     print('Fixed y')
                     if node.Id >= 3:
-                        # S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_X))
-                        # S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_Y))
-                        S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_X)*1e3)
-                        S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_Y)*1e3)
+                        S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_X))
+                        S.append(node.GetSolutionStepValue(KratosMultiphysics.DISPLACEMENT_Y))
+           
 
             S = np.array([S])
 
             print('Shape of S', S.shape)
             print(S)
 
-            SNorm=self.autoencoder.normalize_data(S.copy())
-            SNPred = self.kratos_network.predict_snapshot(self.autoencoder, SNorm)
-            SPred=self.autoencoder.denormalize_data(SNPred)
+            # SNorm=self.autoencoder.normalize_data(S.copy())
+            SPred = self.autoencoder.predict_snapshot(S) # predict_snaptshot already normalizes and denormalizes
+            # SPred=self.autoencoder.denormalize_data(SNPred)
 
-            q = self.kratos_network.predict_snapshot(self.encoder, SNorm)
+            q = self.kratos_network.encode_snapshot(self.encoder, self.autoencoder, S)
 
-            print("Shape of SNorm:", SNorm.shape)
+            # print("Shape of SNorm:", SNorm.shape)
 
             # Check the prediction correctness:
             # s__norm = np.linalg.norm(SNorm)
             # sp_norm = np.linalg.norm((SNPred)-(SNorm))
 
-            s__norm = np.linalg.norm(S)
-            sp_norm = np.linalg.norm((SPred)-(S))
+            s__norm = np.linalg.norm(S, axis=1)
+            sp_norm = np.linalg.norm(SPred-S, axis=1)
 
+            # print(s__norm)
+            # print(sp_norm)
 
             if s__norm != 0:
                 print("Norm error for this iteration", sp_norm/s__norm)
@@ -347,7 +351,7 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
 
             nn_nodal_modes=np.concatenate((np.zeros((4,nn_nodal_modes.shape[-1])),nn_nodal_modes),axis=0)
 
-            print("gradient shapes:", nn_nodal_modes.shape)
+            # print("gradient shapes:", nn_nodal_modes.shape)
             # print(nn_nodal_modes)
             
             nodal_dofs = 2

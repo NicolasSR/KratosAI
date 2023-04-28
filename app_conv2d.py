@@ -66,6 +66,30 @@ def prepare_input(dataset_path):
 
     return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
 
+def prepare_input_augmented(dataset_path):
+
+    S_flat_orig=np.load(dataset_path+'FOM.npy')[:,4:]
+    S_flat_orig_train=np.load(dataset_path+'S_augm_train.npy')[:,4:]
+    S_flat_orig_test=np.load(dataset_path+'S_finetune_test.npy')[:,4:]
+    R_train=np.load(dataset_path+'R_augm_train.npy')
+    R_test=np.load(dataset_path+'R_finetune_test.npy')
+    F_train=np.load(dataset_path+'F_augm_train.npy')[:,0,:]
+    F_test=np.load(dataset_path+'F_finetune_test.npy')[:,0,:]
+
+    return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
+
+def prepare_input_finetune(dataset_path):
+
+    S_flat_orig=np.load(dataset_path+'FOM.npy')[:,4:]
+    S_flat_orig_train=np.load(dataset_path+'S_finetune_train.npy')[:,4:]
+    S_flat_orig_test=np.load(dataset_path+'S_finetune_test.npy')[:,4:]
+    R_train=np.load(dataset_path+'R_finetune_train.npy')
+    R_test=np.load(dataset_path+'R_finetune_test.npy')
+    F_train=np.load(dataset_path+'F_finetune_train.npy')[:,0,:]
+    F_test=np.load(dataset_path+'F_finetune_test.npy')[:,0,:]
+
+    return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
+
 def InitializeKratosAnalysis():
     with open("ProjectParameters_fom.json", 'r') as parameter_file:
         parameters = KMP.Parameters(parameter_file.read())
@@ -130,23 +154,23 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'big_database_finetuneColab_w0.1_lr0.0001',
+        "name": 'AugmFinetune_RandomDatabase_finetuneColab_w0.0_lr0.00001___',
         "encoding_size": 1,
-        "hidden_layers": ((16,(3,5),(1,1)),
-                          (16,(3,5),(1,2)),
+        "hidden_layers": ((16,(3,5),(1,2)),
                           (32,(3,5),(1,2))
                           ),
         "batch_size": 1,
         "epochs": 100,
         "normalization_strategy": 'channel_range',  # ['feature_stand','channel_range']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]
-        "dataset_path": 'datasets_low_big/',
+        "dataset_path": 'datasets_rommanager/',
         "models_path": 'saved_models_conv2d/',
-        "finetune_from": 'saved_models_conv2d/W0_Better_Colab_BigDatabase/',
-        "residual_grad_normalisation": None # For now it is fixed to the identity
+        "finetune_from": 'saved_models_conv2d/W0_Colab_RandomDatabase/',
+        "residual_grad_normalisation": None, # For now it is fixed to the identity
+        "augmented": True
      }
     
     print(ae_config)
@@ -163,7 +187,10 @@ if __name__ == "__main__":
     kratos_network = Conv2D_Residual_AE()
 
     # Get input data
-    S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input(ae_config['dataset_path'])
+    if ae_config["augmented"]:
+        S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input_augmented(ae_config['dataset_path'])
+    else:
+        S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input_finetune(ae_config['dataset_path'])
     print('Shape S_flat_orig: ', S_flat_orig.shape)
     print('Shape S_flat_orig_train:', S_flat_orig_train.shape)
     print('Shape S_flat_orig_test:', S_flat_orig_test.shape)

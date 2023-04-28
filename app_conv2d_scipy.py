@@ -60,8 +60,35 @@ def prepare_input(dataset_path):
     F_train=np.load(dataset_path+'F_train.npy')[:,0,:]
     F_test=np.load(dataset_path+'F_test.npy')[:,0,:]
 
+    test_size=10000/S_flat_orig.shape[0]
+
+    S_flat_orig_test, _, R_test, _, F_test, _ = train_test_split(S_flat_orig_test,R_test,F_test, test_size=1-test_size, random_state=370)
+
     return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
-    # return S_flat_orig[:4], S_flat_orig_train[:4], S_flat_orig_test[:4], R_train[:4], R_test[:4], F_train[:4], F_test[:4]
+
+def prepare_input_finetune(dataset_path):
+
+    S_flat_orig=np.load(dataset_path+'FOM.npy')[:,4:]
+    S_flat_orig_train=np.load(dataset_path+'S_finetune_train.npy')[:,4:]
+    S_flat_orig_test=np.load(dataset_path+'S_finetune_test.npy')[:,4:]
+    R_train=np.load(dataset_path+'R_finetune_train.npy')
+    R_test=np.load(dataset_path+'R_finetune_test.npy')
+    F_train=np.load(dataset_path+'F_finetune_train.npy')[:,0,:]
+    F_test=np.load(dataset_path+'F_finetune_test.npy')[:,0,:]
+
+    return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
+
+def prepare_input_augmented(dataset_path):
+
+    S_flat_orig=np.load(dataset_path+'FOM.npy')[:,4:]
+    S_flat_orig_train=np.load(dataset_path+'S_augm_train.npy')[:,4:]
+    S_flat_orig_test=np.load(dataset_path+'S_finetune_test.npy')[:,4:]
+    R_train=np.load(dataset_path+'R_augm_train.npy')
+    R_test=np.load(dataset_path+'R_finetune_test.npy')
+    F_train=np.load(dataset_path+'F_augm_train.npy')[:,0,:]
+    F_test=np.load(dataset_path+'F_finetune_test.npy')[:,0,:]
+
+    return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
 
 def InitializeKratosAnalysis():
     with open("ProjectParameters_fom.json", 'r') as parameter_file:
@@ -127,22 +154,23 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'continue_scipy_optimizer_test',
+        "name": '_AugmFinetune_BFGS_RandomDatabase_finetuneColab_w1.0_lr0.0001',
         "encoding_size": 1,
-        "hidden_layers": ((16,(2,5),(1,2)),
-                          (32,(2,5),(1,2))
+        "hidden_layers": ((16,(3,5),(1,2)),
+                          (32,(3,5),(1,2))
                           ),
         "batch_size": 1,
         "epochs": 100,
         "normalization_strategy": 'channel_range',  # ['feature_stand','channel_range']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+        "residual_loss_ratio": ('const', 1.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]
-        "dataset_path": 'datasets_low/',
+        "dataset_path": 'datasets_rommanager/',
         "models_path": 'saved_models_conv2d_scipy/',
-        "finetune_from": 'saved_models_conv2d_scipy/W0_GFact1_1Neur/',
-        "residual_grad_normalisation": None # For now it is fixed to the identity
+        "finetune_from": 'saved_models_conv2d/AugmFinetune_RandomDatabase_finetuneColab_w1.0_lr0.0001/',
+        "residual_grad_normalisation": None, # For now it is fixed to the identity
+        "augmented": True
      }
     
     print(ae_config)
@@ -159,7 +187,10 @@ if __name__ == "__main__":
     kratos_network = Conv2D_Residual_AE()
 
     # Get input data
-    S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input(ae_config['dataset_path'])
+    if ae_config["augmented"]:
+        S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input_augmented(ae_config['dataset_path'])
+    else:
+        S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input_finetune(ae_config['dataset_path'])
     print('Shape S_flat_orig: ', S_flat_orig.shape)
     print('Shape S_flat_orig_train:', S_flat_orig_train.shape)
     print('Shape S_flat_orig_test:', S_flat_orig_test.shape)

@@ -4,7 +4,7 @@
         "problem_name"  : "beam_nonlinear_cantileaver_fom_coarse",
         "parallel_type" : "OpenMP",
         "echo_level"    : 1,
-        "start_time"    : 0.0,
+        "start_time"    : 300.0,
         "end_time"      : 3000.0
     },
     "solver_settings"  : {

@@ -50,21 +50,30 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
         ### NN ##
         def _CreateModel(self):
 
-            S_train=np.load('datasets_low/S_train.npy')
-            S_test=np.load('datasets_low/S_test.npy')
+            S_train=np.load('datasets_rommanager/S_train.npy')
+            S_test=np.load('datasets_rommanager/S_test.npy')
 
             self.U,sigma,_ = np.linalg.svd(S_train.T, full_matrices=True, compute_uv=True, hermitian=False)
             self.U = self.U[:,:2]
             print(self.U.shape)
 
-            S_pred = self.U@self.U.T@S_train.T
+            """ S_pred = self.U@self.U.T@S_train.T
 
             # Check the estimation error:
             s__norm = np.linalg.norm(S_train.T, axis=0)
             sp_norm = np.linalg.norm(S_pred-S_train.T, axis=0)
             print(s__norm.shape)
             print(sp_norm.shape)
+            print('Train mean rel L2 norm:')
+            print(np.mean(sp_norm/s__norm))
+
+            s__norm = np.linalg.norm(S_train.T)
+            sp_norm = np.linalg.norm(S_pred-S_train.T)
+            print(s__norm.shape)
+            print(sp_norm.shape)
+            print('Train rel frob norm:')
             print(sp_norm/s__norm)
+
 
             # Check the prediction correctness:
             s__norm = np.linalg.norm(S_train[0])
@@ -75,21 +84,27 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
 
             S_test_pred = self.U@self.U.T@S_test.T
 
-            # # Check the estimation error:
-            # s__norm = np.linalg.norm(S_test.T, axis=0)
-            # sp_norm = np.linalg.norm(S_test_pred-S_test.T, axis=0)
-            # print(s__norm.shape)
-            # print(sp_norm.shape)
-            # print(sp_norm/s__norm)
+            # Check the estimation error:
+            s__norm = np.linalg.norm(S_test.T, axis=0)
+            sp_norm = np.linalg.norm(S_test_pred-S_test.T, axis=0)
+            print(s__norm.shape)
+            print(sp_norm.shape)
+            print('Test mean rel L2 norm:')
+            print(np.mean(sp_norm/s__norm))
 
-            # # Check the prediction correctness:
-            # s__norm = np.linalg.norm(S_test[0])
-            # sp_norm = np.linalg.norm(S_test_pred[:,0]-S_test[0])
-            # print(s__norm)
-            # print(sp_norm)
-            # print("Norm error for this iteration", sp_norm/s__norm)
+            s__norm = np.linalg.norm(S_test.T)
+            sp_norm = np.linalg.norm(S_test_pred-S_test.T)
+            print(s__norm.shape)
+            print(sp_norm.shape)
+            print('Test rel frob norm:')
+            print(sp_norm/s__norm)
 
-            # exit()
+            # Check the prediction correctness:
+            s__norm = np.linalg.norm(S_test[0])
+            sp_norm = np.linalg.norm(S_test_pred[:,0]-S_test[0])
+            print(s__norm)
+            print(sp_norm)
+            print("Norm error for this iteration", sp_norm/s__norm) """
 
         def _CreateSolver(self):
             """ Create the Solver (and create and import the ModelPart if it is not alread in the model) """

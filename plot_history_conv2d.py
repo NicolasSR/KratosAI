@@ -26,8 +26,11 @@ if __name__ == "__main__":
     color = 'tab:red'
     ax1.set_xlabel('epoch')
     ax1.set_ylabel('x_loss', color=color)
-    plt.plot(np.arange(len(history['lr'])), history['loss_x'], label='x_train', color='red')
-    plt.plot(np.arange(len(history['lr'])), history['val_loss_x'], label='x_val', color='orange')
+    plt.plot(np.arange(len(history['loss_x'])), history['loss_x'], label='x_train', color='red')
+    try:
+        plt.plot(np.arange(len(history['val_loss_x'])), history['val_loss_x'], label='x_val', color='orange')
+    except:
+        print('No val_loss_x data')
     ax1.set_yscale('log')
     ax1.tick_params(axis='y', labelcolor=color)
 
@@ -36,8 +39,11 @@ if __name__ == "__main__":
     try:
         color = 'tab:blue'
         ax2.set_ylabel('r_loss', color=color)  # we already handled the x-label with ax1
-        plt.plot(np.arange(len(history['lr'])), history['err_r'], label='r_train', color='blue')
-        plt.plot(np.arange(len(history['lr'])), history['val_err_r'], label='r_val', color='cyan')
+        plt.plot(np.arange(len(history['err_r'])), history['err_r'], label='r_train', color='blue')
+        try:
+            plt.plot(np.arange(len(history['val_err_r'])), history['val_err_r'], label='r_val', color='cyan')
+        except:
+            print('No val_err_r data')
         ax2.set_yscale('log')
         ax2.tick_params(axis='y', labelcolor=color)
     except:
@@ -50,13 +56,17 @@ if __name__ == "__main__":
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.show()
 
-    plt.plot(np.arange(len(history['lr'])), history['lr'])
-    plt.yscale('log')
-    plt.show()
+    try:
+        plt.plot(np.arange(len(history['lr'])), history['lr'])
+        plt.yscale('log')
+        plt.show()
 
-    plt.plot(np.arange(len(history['lr'])), history['w'])
-    plt.show()
+        plt.plot(np.arange(len(history['w'])), history['w'])
+        plt.show()
 
-    plt.plot(np.arange(len(history['r_norm_factor'])), history['r_norm_factor'])
-    plt.yscale('log')
-    plt.show()
+        plt.plot(np.arange(len(history['r_norm_factor'])), history['r_norm_factor'])
+        plt.yscale('log')
+        plt.show()
+
+    except:
+        print("No lr, w or r_norm_factor to plot")

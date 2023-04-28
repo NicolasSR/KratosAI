@@ -66,15 +66,17 @@ class ScipyOptimizerKratos():
             r_orig=np.expand_dims(r_orig_set[step], axis=0)
             f_true=np.expand_dims(f_true_set[step], axis=0)
 
+            b_true=r_orig/1e9
+
             grad_loss_x, jac_u, loss_x, x_pred_denorm = model.get_jacobians(model.trainable_variables, x_true)
             total_loss_x+=np.sum(loss_x)
 
             A_pred, b_pred = model.get_r(x_pred_denorm,f_true)
             A_pred  = tf.constant(A_pred)
 
-            err_r = b_pred
+            err_r = b_true-b_pred
             err_r = tf.expand_dims(tf.constant(err_r),axis=0)
-            loss_r = model.diff_loss(b_pred, 0)
+            loss_r = model.diff_loss(b_true, b_pred)
             total_loss_r+=np.sum(loss_r)
 
             i=0
@@ -100,7 +102,6 @@ class ScipyOptimizerKratos():
                 
                 i+=1
             
-
             progbar.update(step, [('loss', loss_x), ('err_r', loss_r)])
 
         cost = (total_loss_x + w*total_loss_r/r_norm_factor)/n_steps
@@ -121,7 +122,6 @@ class ScipyOptimizerKratos():
             return cost, xgrads
 
         raise NotImplementedError()
-        return -1, np.array([])  # pylint:disable=unreachable
 
     def train_function(self, data):
         """ Called by model fit.

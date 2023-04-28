@@ -66,6 +66,18 @@ def prepare_input(dataset_path):
 
     return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
 
+def prepare_input_finetune(dataset_path):
+
+    S_flat_orig=np.load(dataset_path+'FOM.npy')[:,4:]
+    S_flat_orig_train=np.load(dataset_path+'S_finetune_train.npy')[:,4:]
+    S_flat_orig_test=np.load(dataset_path+'S_finetune_test.npy')[:,4:]
+    R_train=np.load(dataset_path+'R_finetune_train.npy')
+    R_test=np.load(dataset_path+'R_finetune_test.npy')
+    F_train=np.load(dataset_path+'F_finetune_train.npy')[:,0,:]
+    F_test=np.load(dataset_path+'F_finetune_test.npy')[:,0,:]
+
+    return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
+
 def InitializeKratosAnalysis():
     with open("ProjectParameters_fom.json", 'r') as parameter_file:
         parameters = KMP.Parameters(parameter_file.read())
@@ -130,22 +142,23 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'augmented2_w0.1_conv2d',
+        "name": 'Augmented_FinetuneDatabase_finetuneColab_w0.1_lr0.0001',
         "encoding_size": 1,
-        "hidden_layers": ((16,(3,5),(1,2)),
+        "hidden_layers": ((16,(3,5),(1,1)),
+                          (16,(3,5),(1,2)),
                           (32,(3,5),(1,2))
                           ),
         "batch_size": 1,
         "epochs": 100,
-        "augmentation_factor": 2,
         "normalization_strategy": 'channel_range',  # ['feature_stand','channel_range']
         "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
+        "augmentation_factor": 3.0,
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]
         "dataset_path": 'datasets_low_big/',
-        "models_path": 'saved_models_conv2d_augmented/',
-        "finetune_from": None,
+        "models_path": 'saved_models_conv2d_augm/',
+        "finetune_from": 'saved_models_conv2d/W0_Better_Colab_BigDatabase/',
         "residual_grad_normalisation": None # For now it is fixed to the identity
      }
     
@@ -163,7 +176,7 @@ if __name__ == "__main__":
     kratos_network = Conv2D_Residual_AE()
 
     # Get input data
-    S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input(ae_config['dataset_path'])
+    S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = prepare_input_finetune(ae_config['dataset_path'])
     print('Shape S_flat_orig: ', S_flat_orig.shape)
     print('Shape S_flat_orig_train:', S_flat_orig_train.shape)
     print('Shape S_flat_orig_test:', S_flat_orig_test.shape)
@@ -200,21 +213,6 @@ if __name__ == "__main__":
         autoencoder.load_weights(ae_config["finetune_from"]+'model_weights.h5')
 
     autoencoder.set_config_values(ae_config, np.concatenate((R_train, R_test), axis=0), data_normalizer)
-
-    # def calculate_X_norm_error(S_true, S_input):
-    #     S_pred_norm=autoencoder(S_input).numpy()
-    #     S_pred_flat_norm = data_normalizer.reorganize_into_original(S_pred_norm)
-    #     S_pred_flat = data_normalizer.denormalize_data(S_pred_flat_norm)
-    #     l2_error=mean_relative_l2_error(S_true,S_pred_flat)
-    #     forb_error=relative_forbenius_error(S_true,S_pred_flat)
-
-    #     print('X. Mean rel L2 error:', l2_error)
-    #     print('X. Rel Forb. error:', forb_error)
-
-    # print('Test errors')
-    # calculate_X_norm_error(S_flat_orig_test, S_test)
-    # print('Train errors')
-    # calculate_X_norm_error(S_flat_orig_train, S_train)
 
     # exit()
 

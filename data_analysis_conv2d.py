@@ -153,6 +153,8 @@ if __name__ == "__main__":
         forb_error=relative_forbenius_error(R_true,R_pred)
         print('Residual. Mean rel L2 error l:', l2_error)
         print('Residual. Rel Forb. error l:', forb_error)
+        r_error = R_pred-R_true
+        return r_error
 
     def calculate_X_norm_error(S_true, S_input):
         S_pred_norm=autoencoder(S_input).numpy()
@@ -193,16 +195,35 @@ if __name__ == "__main__":
         print('r_orig:', r_orig)
         print('r_pred:', r_pred)
 
+        # plt.plot(x_orig[0,0::2], '.', color='blue')
+        # plt.plot(x_orig[0,1::2], '.', color='red')
+        # plt.plot(x_pred_flat[0,0::2], '.', color='cyan')
+        # plt.plot(x_pred_flat[0,1::2], '.', color='orange')
         plt.plot(x_orig[0], '.')
         plt.plot(x_pred_flat[0], '.')
+        plt.legend(['x_true','x_pred'])
+        plt.ylabel('displacement')
+        plt.xlabel('degree of freedom')
+        plt.title('F = '+str(F[sample_id,1]))
+        plt.tight_layout()
         plt.show()
 
         plt.plot(x_norm[0], '.')
         plt.plot(x_pred_flat_norm[0], '.')
+        plt.legend(['x_true','x_pred'])
+        plt.ylabel('normalized displacement')
+        plt.xlabel('degree of freedom')
+        plt.title('F = '+str(F[sample_id,1]))
+        plt.tight_layout()
         plt.show()
 
         plt.plot(r_orig[0])
         plt.plot(r_pred[0])
+        plt.legend(['r_true','r_pred'])
+        plt.ylabel('residual value')
+        plt.xlabel('index')
+        plt.title('F = '+str(F[sample_id,1]))
+        plt.tight_layout()
         plt.show()
 
     max_F=np.max(abs(F[:,1]))
@@ -215,20 +236,20 @@ if __name__ == "__main__":
     print(F[sample_min])
     print_x_and_r_vecs(sample_min)
 
-    sample_id = np.argmin(abs(F[:,1]+max_F/3))
-    print(sample_id)
-    print(F[sample_id])
-    print_x_and_r_vecs(sample_id)
+    # sample_id = np.argmin(abs(F[:,1]+max_F/3))
+    # print(sample_id)
+    # print(F[sample_id])
+    # print_x_and_r_vecs(sample_id)
 
     sample_id = np.argmin(abs(F[:,1]+max_F/2))
     print(sample_id)
     print(F[sample_id])
     print_x_and_r_vecs(sample_id)
 
-    sample_id = np.argmin(abs(F[:,1]+max_F*2/3))
-    print(sample_id)
-    print(F[sample_id])
-    print_x_and_r_vecs(sample_id)
+    # sample_id = np.argmin(abs(F[:,1]+max_F*2/3))
+    # print(sample_id)
+    # print(F[sample_id])
+    # print_x_and_r_vecs(sample_id)
 
     sample_max = np.argmax(abs(F[:,1]))
     print(sample_max)
@@ -257,12 +278,38 @@ if __name__ == "__main__":
 
     draw_x_error_image()
 
-    print('Test errors (only for a sample of the test dataset)')
-    reduced_size=10000/S_test.shape[0]
-    S_test_red, _, R_test_red, _, F_test_red, _ = train_test_split(S_test,R_test,F_test, test_size=1-reduced_size, random_state=62)
-    calculate_R_norm_error(S_test_red,R_test_red,F_test_red)
+    print(S_test.shape[0])
+    if S_test.shape[0] > 20000:
+        print('Test errors (only for a sample of the test dataset)')
+        reduced_size=20000/S_test.shape[0]
+        S_test_red, _, R_test_red, _, F_test_red, _ = train_test_split(S_test,R_test,F_test, test_size=1-reduced_size, random_state=62)
+    else:
+        print('Test errors')
+        S_test_red = S_test
+        R_test_red = R_test
+        F_test_red = F_test
+    r_error_test = calculate_R_norm_error(S_test_red,R_test_red,F_test_red)
+    # r_error_test = calculate_R_norm_error(S_test,R_test,F_test)
     print('Train errors')
-    calculate_R_norm_error(S_train,R_train,F_train)
+    r_error_train = calculate_R_norm_error(S_train,R_train,F_train)
+
+    def draw_r_error_image(R_err, F):
+        err_df = pd.DataFrame(R_err)
+        err_df['force']=np.abs(F[:,1])
+        err_df=err_df.sort_values('force')
+        print(err_df)
+        print(err_df.describe())
+        fig, (ax1) = plt.subplots(ncols=1)
+        image=err_df.iloc[:,:-1].to_numpy()
+        im1 = ax1.imshow(image, extent=[1,S_flat.shape[1],np.max(np.abs(F[:,1])),np.min(np.abs(F[:,1]))], interpolation='none')
+        ax1.set_aspect(1/2e5)
+        cbar1 = plt.colorbar(im1)
+        plt.show()
+
+    r_error_to_draw = np.concatenate([r_error_test, r_error_train], axis=0)
+    f_to_draw = np.concatenate([F_test_red, F_train], axis=0)
+
+    draw_r_error_image(r_error_to_draw,f_to_draw)
 
     def output_to_GID():
         # With Kratos enabled this prints the predicted results in mdpa format for GiD

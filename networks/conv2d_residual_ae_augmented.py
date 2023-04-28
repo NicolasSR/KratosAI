@@ -141,15 +141,13 @@ class Conv2DResidualAEModel(keras.Model):
         return jac_u, x_aug_pred_denorm
     
     def apply_random_noise(self, x_true):
-        v=np.random.rand(np.shape(x_true))
+        v=np.random.rand(x_true.shape[1])
         v=v/np.linalg.norm(v)
         eps=np.random.rand()*1e-4
         v=v*eps
+        x_app=x_true+v
 
-        print(v)
-        print(np.linalg.norm(v))
-        print(eps)
-        return v
+        return x_app
 
     def train_step(self,data):
         w = self.w
@@ -205,12 +203,12 @@ class Conv2DResidualAEModel(keras.Model):
 
         ## Training via augmented snapshots
         loss_r_augm = 0
-        for aug_iter in range(self.augmentation_factor):
+        for aug_iter in range(int(self.augmentation_factor)):
             
             x_app_flat_denorm=self.apply_random_noise(x_orig)
-            x_app=self.data_normalizer.reorganize_into_channels(self.data_normalizer.normalize_data_tf(x_app_flat_denorm))
+            x_app=self.data_normalizer.reorganize_into_channels_tf(self.data_normalizer.normalize_data_tf(x_app_flat_denorm))
 
-            jac_u, x_aug_pred_denorm = self.get_jacobians_augmented(self, trainable_vars, x_app)
+            jac_u, x_aug_pred_denorm = self.get_jacobians_augmented(trainable_vars, x_app)
             
             _, r_app_true = self.get_r(x_app_flat_denorm, f_true)
             b_true = r_app_true
@@ -238,7 +236,7 @@ class Conv2DResidualAEModel(keras.Model):
                 grad_loss_r_aug=tf.matmul(aux_err,pre_grad)*(-2)
                 grad_loss_r_aug=tf.reshape(grad_loss_r_aug, l_shape[2:])
 
-                total_gradients[i]=total_gradients[i]+grad_loss_r_aug/self.augmentation_factor
+                total_gradients[i]=total_gradients[i]+w*grad_loss_r_aug/self.augmentation_factor
                 
                 i+=1
 
@@ -257,7 +255,7 @@ class Conv2DResidualAEModel(keras.Model):
         w = self.w
         x_true, (r_orig,f_true) = data
 
-        if w == 1:
+        if w == 0.0:
 
             x_pred = self(x_true, training=True)
             loss_x = self.diff_loss(x_true, x_pred)
@@ -329,8 +327,6 @@ class Conv2D_Residual_AE():
         encoder_out = model_input
         for layer_info in ae_config["hidden_layers"]:
             encoder_out = tf.keras.layers.Conv2D(layer_info[0], kernel_size=layer_info[1], strides=layer_info[2], activation='elu', padding='same')(encoder_out)
-            # encoder_out = tf.keras.layers.Conv2D(layer_info[0], kernel_size=layer_info[1], strides=layer_info[2], activation='linear', padding='same')(encoder_out)
-            # encoder_out = tf.keras.layers.LeakyReLU(alpha=0.3)(encoder_out)
             lay_size_x=lay_size_x//layer_info[2][0]
             lay_size_y=lay_size_y//layer_info[2][1]
         encoder_out = tf.keras.layers.Flatten()(encoder_out)
@@ -339,15 +335,11 @@ class Conv2D_Residual_AE():
         decoder_out = decod_input
         flat_size=lay_size_x*lay_size_y*ae_config["hidden_layers"][-1][0]
         decoder_out = tf.keras.layers.Dense(flat_size, activation='elu', use_bias=True, kernel_initializer=HeNormal())(decoder_out)
-        # decoder_out = tf.keras.layers.Dense(flat_size, activation='linear', use_bias=True, kernel_initializer=HeNormal())(decoder_out)
-        # decoder_out = tf.keras.layers.LeakyReLU(alpha=0.3)(decoder_out)
         decoder_out = tf.keras.layers.Reshape((lay_size_x,lay_size_y,ae_config["hidden_layers"][-1][0]))(decoder_out)
         for i in range(num_layers-1):
             layer_channels=ae_config["hidden_layers"][num_layers-i-2][0]
             layer_info=ae_config["hidden_layers"][num_layers-i-1]
             decoder_out = tf.keras.layers.Conv2DTranspose(layer_channels, kernel_size=layer_info[1], strides=layer_info[2], activation='elu', padding='same')(decoder_out)
-            # decoder_out = tf.keras.layers.Conv2DTranspose(layer_channels, kernel_size=layer_info[1], strides=layer_info[2], activation='linear', padding='same')(decoder_out)
-            # decoder_out = tf.keras.layers.LeakyReLU(alpha=0.3)(decoder_out)
         layer_info = ae_config["hidden_layers"][0]
         decoder_out = tf.keras.layers.Conv2DTranspose(input_channels, kernel_size=layer_info[1], strides=layer_info[2], activation='linear', padding='same')(decoder_out)
         
@@ -433,7 +425,7 @@ class Conv2D_Residual_AE():
         else: print('Unvalid r_norm scheduler')
 
         early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss_x', patience=5)
-        log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        # log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
         checkpoint_best_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_x",mode="min")
         checkpoint_last_callback = keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/last/weights.h5",save_weights_only=True,save_freq="epoch")

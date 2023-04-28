@@ -134,7 +134,7 @@ class Conv2DResidualAEModel(keras.Model):
         w = self.w
         x_true, (r_orig,f_true) = data
 
-        if w == 1:
+        if w == 0.0:
 
             x_pred = self(x_true, training=True)
             loss_x = self.diff_loss(x_true, x_pred)
