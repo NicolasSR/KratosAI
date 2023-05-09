@@ -41,7 +41,7 @@ from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Norma
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error
 
 import kratos_io
-from networks.conv2d_residual_ae import  Conv2D_Residual_AE
+from networks.conv2d_only_residual_ae import  Conv2D_OnlyResidual_AE
 
 def print_gpu_info():
     gpu_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -167,21 +167,21 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'NoBias_NoForce_AugmFinetune_RandomDatabase_finetuneColab_w1.0_lr0.00001',
+        "name": 'OnlyRes_NoBias_NoForce_Augm_w0.0_lr0.001',
         "encoding_size": 1,
-        "hidden_layers": ((16,(3,5),(1,2)),
-                          (32,(3,5),(1,2))
+        "hidden_layers": ((8,(3,5),(1,2)),
+                          (16,(3,5),(1,2))
                           ),
         "batch_size": 1,
         "epochs": 100,
         "normalization_strategy": 'channel_scale',  # ['feature_stand','channel_range', 'channel_scale']
-        "residual_loss_ratio": ('const', 1.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]
         "dataset_path": 'datasets_rommanager/',
         "models_path": 'saved_models_conv2d/',
-        "finetune_from": 'saved_models_conv2d/STOPPED25_NoBias_NoForce_AugmFinetune_RandomDatabase_finetuneColab_w1.0_lr0.00001/',
+        "finetune_from": None, #'saved_models_conv2d/W0_Colab_NoBias_RandomDatabase/',
         "residual_grad_normalisation": None, # For now it is fixed to the identity
         "augmented": True,
         "use_force": False,
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     fake_simulation = InitializeKratosAnalysis()
 
     # Select the network to use
-    kratos_network = Conv2D_Residual_AE()
+    kratos_network = Conv2D_OnlyResidual_AE()
 
     # Get input data
     if ae_config["augmented"]:

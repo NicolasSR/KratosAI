@@ -33,6 +33,8 @@ from KratosMultiphysics.RomApplication.calculate_rom_basis_output_process import
 
 from KratosMultiphysics.RomApplication.randomized_singular_value_decomposition import RandomizedSingularValueDecomposition
 
+import matplotlib.pyplot as plt
+
 def custom_loss(y_true, y_pred):
     y_diff = y_true-y_pred
     y_diff = y_diff ** 2
@@ -56,6 +58,16 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
             self.U,sigma,_ = np.linalg.svd(S_train.T, full_matrices=True, compute_uv=True, hermitian=False)
             self.U = self.U[:,:2]
             print(self.U.shape)
+
+            plt.plot(sigma,'.')
+            plt.xlabel('index')
+            plt.ylabel('singular value')
+            plt.title('Singular values')
+            plt.show()
+
+
+            exit()
+
 
             """ S_pred = self.U@self.U.T@S_train.T
 
@@ -242,7 +254,7 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
             # This calls the physics Finalize
             super().Finalize()
 
-            np.save("NN_ROM.npy",self.snapshots_matrix)
+            np.save("SVD_ROM.npy",self.snapshots_matrix)
 
             # Once simulation is completed, calculate and save the HROM weights
             if self.train_hrom:

@@ -37,7 +37,7 @@ from KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_anal
 from fom_analysis import CreateRomAnalysisInstance
 
 from utils.randomized_singular_value_decomposition import RandomizedSingularValueDecomposition
-from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_FeatureStand
+from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_ChannelScale, Conv2D_AE_Normalizer_FeatureStand
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error
 
 from sklearn.model_selection import train_test_split
@@ -68,6 +68,8 @@ def prepare_input(dataset_path):
 def normalizer_selector(normalization_strategy):
     if normalization_strategy == 'channel_range':
         return Conv2D_AE_Normalizer_ChannelRange()
+    elif normalization_strategy == 'channel_scale':
+        return Conv2D_AE_Normalizer_ChannelScale()
     elif normalization_strategy == 'feature_stand':
         return Conv2D_AE_Normalizer_FeatureStand()
     else:
@@ -115,6 +117,8 @@ if __name__ == "__main__":
 
     S_flat_orig=np.concatenate((S_flat_orig_test, S_flat_orig_train), axis=0)
     F=np.concatenate((F_test, F_train), axis=0)
+    print(F_test.shape)
+    print(F[:10])
     R=np.concatenate((R_test, R_train), axis=0)
 
     data_normalizer=normalizer_selector(ae_config["normalization_strategy"])
@@ -145,6 +149,15 @@ if __name__ == "__main__":
     autoencoder.load_weights(data_path+'model_weights.h5')
     # encoder.load_weights(data_path+'encoder_model_weights.h5')
 
+    # for layer in autoencoder.trainable_variables:
+    #     print(layer.shape)
+    # print(autoencoder(np.expand_dims(np.zeros(S[0].shape), axis=0)))
+    # print(encoder(np.expand_dims(np.zeros(S[0].shape), axis=0)))
+    # print(data_normalizer.ch1_factor)
+    # print(data_normalizer.ch2_factor)
+    # print(autoencoder(np.expand_dims(S[0], axis=0)))
+    # exit()
+
     def calculate_R_norm_error(S_input, R_true, F_true):
         R_true=R_true/1e9
         S_pred_norm=autoencoder(S_input).numpy()
@@ -166,6 +179,8 @@ if __name__ == "__main__":
         print('X. Mean rel L2 error:', l2_error)
         print('X. Rel Forb. error:', forb_error)
 
+    print(F.shape)
+
     print('Test errors')
     calculate_X_norm_error(S_flat_orig_test, S_test)
     print('Train errors')
@@ -178,6 +193,7 @@ if __name__ == "__main__":
             plt.scatter(F[:,1],embeddings[i])
         plt.show()
 
+    print(F.shape)
     plot_embeddings()
 
     def print_x_and_r_vecs(sample_id):
@@ -226,7 +242,7 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
 
-    max_F=np.max(abs(F[:,1]))
+    """     max_F=np.max(abs(F[:,1]))
     min_F=np.min(abs(F[:,1]))
 
     print(max_F)
@@ -259,7 +275,7 @@ if __name__ == "__main__":
     # sample_id = S_test.shape[0]+1000
     # print(sample_id)
     # print(F[sample_id])
-    # print_x_and_r_vecs(sample_id)
+    # print_x_and_r_vecs(sample_id) """
 
     def draw_x_error_image():
         S_pred = autoencoder(S).numpy()
@@ -271,9 +287,12 @@ if __name__ == "__main__":
         print(err_df.describe())
         fig, (ax1) = plt.subplots(ncols=1)
         image=err_df.iloc[:,:-1].to_numpy()
-        im1 = ax1.imshow(image, extent=[1,S_flat.shape[1],np.max(np.abs(F[:,1])),np.min(np.abs(F[:,1]))], interpolation='none')
+        im1 = ax1.imshow(image, extent=[1,S_flat.shape[1],np.min(np.abs(F[:,1])),np.max(np.abs(F[:,1]))], interpolation='none', vmin=-0.001, vmax=0.0015)
         ax1.set_aspect(1/2e5)
         cbar1 = plt.colorbar(im1)
+        plt.xlabel('index')
+        plt.ylabel('force')
+        plt.title('Displacement Abs Error')
         plt.show()
 
     draw_x_error_image()
@@ -301,9 +320,12 @@ if __name__ == "__main__":
         print(err_df.describe())
         fig, (ax1) = plt.subplots(ncols=1)
         image=err_df.iloc[:,:-1].to_numpy()
-        im1 = ax1.imshow(image, extent=[1,S_flat.shape[1],np.max(np.abs(F[:,1])),np.min(np.abs(F[:,1]))], interpolation='none')
+        im1 = ax1.imshow(image, extent=[1,S_flat.shape[1],np.min(np.abs(F[:,1])),np.max(np.abs(F[:,1]))], interpolation='none', vmin=-0.02, vmax=0.02)
         ax1.set_aspect(1/2e5)
         cbar1 = plt.colorbar(im1)
+        plt.xlabel('index')
+        plt.ylabel('force')
+        plt.title('Residual Abs Error')
         plt.show()
 
     r_error_to_draw = np.concatenate([r_error_test, r_error_train], axis=0)

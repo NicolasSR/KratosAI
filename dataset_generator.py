@@ -93,7 +93,6 @@ def InitializeKratosAnalysis():
 
 def project_prediction(snapshot, f, modelpart):
         values = snapshot
-        f_value=f[0]
 
         itr = 0
         for node in modelpart.Nodes:
@@ -107,9 +106,11 @@ def project_prediction(snapshot, f, modelpart):
 
             if not node.IsFixed(KMP.DISPLACEMENT_X):
                 itr += 2
-            
-        for condition in modelpart.Conditions:
-            condition.SetValue(SMA.POINT_LOAD, f_value)
+        
+        if f is not None:
+            f_value=f[0]
+            for condition in modelpart.Conditions:
+                condition.SetValue(SMA.POINT_LOAD, f_value)
 
 def get_r(fake_simulation, snapshot, f):
         snapshot = snapshot[4:]
@@ -190,6 +191,27 @@ def generate_augm_finetune_datasets(dataset_path, augm_order):
     with open(dataset_path+"F_augm_train.npy", "wb") as f:
         np.save(f, F_augm)
 
+def generate_residuals_noforce(dataset_path):
+    
+    # Create a fake Analysis stage to calculate the predicted residuals
+    fake_simulation = InitializeKratosAnalysis()
+    with open(dataset_path+"S_finetune_train.npy", "rb") as f:
+        S_train=np.load(f)
+
+    R_noF_train=[]
+
+    for i in range(S_train.shape[0]):
+        r_true = get_r(fake_simulation, S_train[i], None)
+        R_noF_train.append(r_true)
+
+        if i%100 == 0:
+            print('Iteration: ', i, 'of ', S_train.shape[0], '. Current length: ', len(R_noF_train))
+    
+    R_noF_train=np.array(R_noF_train)
+
+    with open(dataset_path+"R_finetune_noF_train.npy", "wb") as f:
+        np.save(f, R_noF_train)
+
 
 if __name__ == "__main__":
 
@@ -197,4 +219,5 @@ if __name__ == "__main__":
 
     # generate_training_datasets(dataset_path)
     # generate_finetune_datasets(dataset_path)
-    generate_augm_finetune_datasets(dataset_path, 3)
+    # generate_augm_finetune_datasets(dataset_path, 3)
+    generate_residuals_noforce(dataset_path)
