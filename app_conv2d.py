@@ -41,7 +41,7 @@ from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Norma
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error
 
 import kratos_io
-from networks.conv2d_residual_ae import  Conv2D_Residual_AE
+from networks.smain_ae import  Conv2D_Residual_AE
 
 def print_gpu_info():
     gpu_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -114,35 +114,6 @@ def InitializeKratosAnalysis():
 
     return fake_simulation
 
-
-def normalize_snapshots_data(S, normalization_strategy):
-    if normalization_strategy == 'per_feature':
-        print('Normalizing each feature in S')
-        S_flat=S.reshape((S.shape[0],48))
-        print(S[0])
-        print(S_flat[0])
-        print(S.reshape((S.shape[0],2,2,12))[0])
-        feat_means = []
-        feat_stds = []
-        S_df = pd.DataFrame(S_flat)
-        for col in range(len(S_df.columns)):
-            feat_means.append(S_df[col].mean())
-            feat_stds.append(S_df[col].std())
-        feat_means=np.reshape(feat_means,(2,2,12))
-        feat_stds=np.reshape(feat_stds,(2,2,12))
-        autoencoder.set_normalization_data(normalization_strategy, (feat_means, feat_stds))
-    elif normalization_strategy == 'global':
-        print('Global normalisation not implemented')
-        exit()
-        print('Applying global min-max normalization on S')
-        data_min = np.min(S)
-        data_max = np.max(S)
-        autoencoder.set_normalization_data(normalization_strategy, (data_min, data_max))
-    else:
-        print('No normalization')
-    SNorm = autoencoder.normalize_data(S)
-    return SNorm
-
 def normalizer_selector(normalization_strategy):
     if normalization_strategy == 'channel_range':
         return Conv2D_AE_Normalizer_ChannelRange()
@@ -167,21 +138,21 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'NoBias_NoForce_AugmFinetune_RandomDatabase_finetuneColab_w1.0_lr0.00001',
+        "name": 'NoBias_NoForce_AugmFinetune_RandomDatabase_finetuneColab_w0.1_lr0.00001',
         "encoding_size": 1,
         "hidden_layers": ((16,(3,5),(1,2)),
                           (32,(3,5),(1,2))
                           ),
         "batch_size": 1,
-        "epochs": 100,
+        "epochs": 45,
         "normalization_strategy": 'channel_scale',  # ['feature_stand','channel_range', 'channel_scale']
-        "residual_loss_ratio": ('const', 1.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]
         "dataset_path": 'datasets_rommanager/',
         "models_path": 'saved_models_conv2d/',
-        "finetune_from": 'saved_models_conv2d/STOPPED25_NoBias_NoForce_AugmFinetune_RandomDatabase_finetuneColab_w1.0_lr0.00001/',
+        "finetune_from": 'saved_models_conv2d/STOPPED55_NoBias_NoForce_AugmFinetune_RandomDatabase_finetuneColab_w0.1_lr0.00001/',
         "residual_grad_normalisation": None, # For now it is fixed to the identity
         "augmented": True,
         "use_force": False,

@@ -1,13 +1,13 @@
 import re
 import json
 
-filename = "text_log_to_history.txt"
+filename = "raw_history.txt"
 
 with open(filename, "r") as f:
     text = f.read()
 
 ###########   FOR KERAS TRAINED MODELS  ###############
-""" # Use regular expressions to extract the values for each epoch
+# Use regular expressions to extract the values for each epoch
 pattern = r"Epoch \d+/\d+\n.*loss_x: ([\d\.e+-]+).*err_r: ([\d\.e+-]+).*val_loss_x: ([\d\.e+-]+).*val_err_r: ([\d\.e+-]+)"
 matches = re.findall(pattern, text)
 
@@ -29,11 +29,11 @@ print(history)
 
 with open("out_history.json", "w") as f:
     # Use the JSON module to write the dictionary to the file
-    json.dump(history, f) """
+    json.dump(history, f)
 
 
 ###########   FOR BFGS TRAINED MODELS  ###############
-# Use regular expressions to extract the values for each epoch
+""" # Use regular expressions to extract the values for each epoch
 # pattern = r"At iterate    \d+    f=  [\d\.D+-]+    |proj g|=  [\d\.D+-]+\n.*loss: ([\d\.e+-]+).*err_r: ([\d\.e+-]+)"
 pattern = r"\d+/\d+ \[+.*loss: ([\d\.e+-]+).*err_r: ([\d\.e+-]+).+\nAt iterate"
 
@@ -57,4 +57,4 @@ print(history)
 
 with open("out_history.json", "w") as f:
     # Use the JSON module to write the dictionary to the file
-    json.dump(history, f)
+    json.dump(history, f) """

@@ -1,9 +1,85 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import abc
 
-class AE_Normalizer_ChannelRange():
+from KratosMultiphysics.RomApplication.randomized_singular_value_decomposition import RandomizedSingularValueDecomposition
+
+class AE_Normalizer_Base(abc.ABC):
+
     def __init__(self):
+        super().__init__()
+        self.needs_truncation=True
+
+    def process_raw_to_input_format(self, data):
+        data_norm = self.normalize_data(data)
+        return data_norm
+    
+    def process_input_to_raw_format(self, data):
+        data_denorm = self.denormalize_data(data)
+        return data_denorm
+    
+    @tf.function
+    def process_raw_to_input_format_tf(self, tensor):
+        tensor_norm = self.normalize_data_tf(tensor)
+        return tensor_norm
+    
+    @tf.function
+    def process_input_to_raw_format_tf(self, tensor):
+        tensor_denorm = self.denormalize_data_tf(tensor)
+        return tensor_denorm
+    
+    @abc.abstractmethod
+    def configure_normalization_data(self, S):
+        """ Define in subclass"""
+    
+    @abc.abstractmethod
+    def normalize_data(self, data):
+        """ Define in subclass"""
+    
+    @abc.abstractmethod
+    def denormalize_data(self, data):
+        """ Define in subclass"""
+
+    @abc.abstractmethod
+    def normalize_data_tf(self, tensor):
+        """ Define in subclass"""
+    
+    @abc.abstractmethod
+    def denormalize_data_tf(self, tensor):
+        """ Define in subclass"""
+
+
+class AE_Normalizer_SVD(AE_Normalizer_Base):
+    def __init__(self):
+        super().__init__()
+        self.phi=None
+        self.needs_truncation=False
+
+    def configure_normalization_data(self, S):
+        self.phi,sigma,_,error = RandomizedSingularValueDecomposition().Calculate(S.T,1e-16)
+        print('Phi matrix shape: ', self.phi.shape)
+
+    def normalize_data(self, data):
+        output_data=np.matmul(self.phi.T,data.T).T
+        return output_data
+    
+    def normalize_data_tf(self,tensor):
+        output_tensor=tf.transpose(tf.linalg.matmul(tf.transpose(self.phi),tf.transpose(tensor)))
+        return output_tensor
+
+    def denormalize_data(self, data):
+        output_data=np.matmul(self.phi,data).T
+        return output_data
+    
+    def denormalize_data_tf(self,tensor):
+        output_tensor=tf.transpose(tf.linalg.matmul(self.phi,tensor))
+        return output_tensor
+
+
+class AE_Normalizer_ChannelRange(AE_Normalizer_Base):
+    def __init__(self):
+        super().__init__()
         self.ch1_max=None
         self.ch1_min=None
         self.ch2_max=None
@@ -26,7 +102,6 @@ class AE_Normalizer_ChannelRange():
         output_data[:,1::2]=(output_data[:,1::2]-self.ch2_min)/(self.ch2_max-self.ch2_min)
         return output_data
     
-    @tf.function
     def normalize_data_tf(self,tensor):
         output_tensor=tensor-self.subt_term
         output_tensor=output_tensor/self.div_coeff
@@ -38,15 +113,15 @@ class AE_Normalizer_ChannelRange():
         output_data[:,1::2]=output_data[:,1::2]*(self.ch2_max-self.ch2_min)+self.ch2_min
         return output_data
     
-    @tf.function
     def denormalize_data_tf(self,tensor):
         output_tensor=tensor*self.div_coeff
         output_tensor=output_tensor+self.subt_term
         return output_tensor
     
     
-class AE_Normalizer_ChannelScale():
+class AE_Normalizer_ChannelScale(AE_Normalizer_Base):
     def __init__(self):
+        super().__init__()
         self.factor_ch1=None
         self.factor_ch2=None
         self.subt_term=None
@@ -76,7 +151,6 @@ class AE_Normalizer_ChannelScale():
         output_data[:,1::2]=output_data[:,1::2]/self.ch2_factor
         return output_data
     
-    @tf.function
     def normalize_data_tf(self,tensor):
         output_tensor=tensor/self.div_coeff
         return output_tensor
@@ -87,14 +161,14 @@ class AE_Normalizer_ChannelScale():
         output_data[:,1::2]=output_data[:,1::2]*self.ch2_factor
         return output_data
     
-    @tf.function
     def denormalize_data_tf(self,tensor):
         output_tensor=tensor*self.div_coeff
         return output_tensor
   
   
-class AE_Normalizer_FeatureStand():
+class AE_Normalizer_FeatureStand(AE_Normalizer_Base):
     def __init__(self):
+        super().__init__()
         self.feat_means = None   
         self.feat_stds = None
 
@@ -115,7 +189,6 @@ class AE_Normalizer_FeatureStand():
             output_data[:,i]=(output_data[:,i]-self.feat_means[i])/(self.feat_stds[i]+0.00000001)
         return output_data
     
-    @tf.function
     def normalize_data_tf(self,tensor):
         output_tensor=tensor-np.array([self.feat_means])
         output_tensor=output_tensor/(np.array([self.feat_stds])+0.00000001)
@@ -127,16 +200,15 @@ class AE_Normalizer_FeatureStand():
             output_data[:,i]= (output_data[:,i]*self.feat_stds[i])+self.feat_means[i]
         return output_data
     
-    @tf.function
     def denormalize_data_tf(self,tensor):
         output_tensor=tensor*np.array([self.feat_stds])
         output_tensor=output_tensor+np.array([self.feat_means])
         return output_tensor
     
     
-class AE_Normalizer_None():
+class AE_Normalizer_None(AE_Normalizer_Base):
     def __init__(self):
-        return
+        super().__init__()
 
     def configure_normalization_data(self, S):
         return
@@ -145,7 +217,6 @@ class AE_Normalizer_None():
         output_data=data.copy()
         return output_data
     
-    @tf.function
     def normalize_data_tf(self, tensor):
         output_tensor=tensor
         return output_tensor
@@ -154,14 +225,80 @@ class AE_Normalizer_None():
         output_data=data.copy()
         return output_data
     
-    @tf.function
     def denormalize_data_tf(self, tensor):
         output_tensor=tensor
         return output_tensor
+    
 
+class Conv2D_AE_Normalizer_Base(abc.ABC):
 
-class Conv2D_AE_Normalizer_ChannelRange():
     def __init__(self):
+        super().__init__()
+        self.needs_truncation=True
+
+    def process_raw_to_input_format(self, data):
+        data_norm = self.normalize_data(data)
+        data_norm_2d = self.reorganize_into_channels(data_norm)
+        return data_norm_2d
+    
+    def process_input_to_raw_format(self, data):
+        data_flat = self.reorganize_into_original(data)
+        data_flat_denorm = self.denormalize_data(data_flat)
+        return data_flat_denorm
+    
+    @tf.function
+    def process_raw_to_input_format_tf(self, tensor):
+        tensor_norm = self.normalize_data_tf(tensor)
+        tensor_norm_2d = self.reorganize_into_channels_tf(tensor_norm)
+        return tensor_norm_2d
+    
+    @tf.function
+    def process_input_to_raw_format_tf(self, tensor):
+        tensor_flat = self.reorganize_into_original_tf(tensor)
+        tensor_flat_denorm = self.denormalize_data_tf(tensor_flat)
+        return tensor_flat_denorm
+    
+    @abc.abstractmethod
+    def configure_normalization_data(self, S):
+        """ Define in subclass"""
+
+    @abc.abstractmethod
+    def reorganize_into_original(self, S):
+        """ Define in subclass"""
+
+    @abc.abstractmethod
+    def reorganize_into_channels(self, S):
+        """ Define in subclass"""
+    
+    @abc.abstractmethod
+    def normalize_data(self, data):
+        """ Define in subclass"""
+    
+    @abc.abstractmethod
+    def denormalize_data(self, data):
+        """ Define in subclass"""
+
+    @abc.abstractmethod
+    def reorganize_into_original_tf(self, tensor):
+        """ Define in subclass"""
+
+    @abc.abstractmethod
+    def reorganize_into_channels_tf(self, tensor):
+        """ Define in subclass"""
+    
+    @abc.abstractmethod
+    def normalize_data_tf(self, tensor):
+        """ Define in subclass"""
+    
+    @abc.abstractmethod
+    def denormalize_data_tf(self, tensor):
+        """ Define in subclass"""
+
+
+class Conv2D_AE_Normalizer_ChannelRange(Conv2D_AE_Normalizer_Base):
+
+    def __init__(self):
+        super().__init__()
         self.ch1_max=None
         self.ch1_min=None
         self.ch2_max=None
@@ -201,7 +338,6 @@ class Conv2D_AE_Normalizer_ChannelRange():
         S_rearr=np.array(S_rearr)
         return S_rearr
 
-    @tf.function
     def reorganize_into_original_tf(self, tensor):
         output_tensor=tf.reshape(tensor, (tensor.shape[0],48)) # Not the prettiest, with hard-coded dimensions
         output_tensor=tf.gather(output_tensor, indices=self.ids_order_to_orig, axis=1)
@@ -215,7 +351,6 @@ class Conv2D_AE_Normalizer_ChannelRange():
         S_rearr=S_rearr.reshape((S_rearr.shape[0],2,12,2)) # Not the prettiest, with hard-coded dimensions
         return S_rearr
     
-    @tf.function
     def reorganize_into_channels_tf(self, tensor):
         output_tensor=tf.gather(tensor, indices=self.ids_order_to_chan, axis=1)
         output_tensor=tf.reshape(output_tensor, (output_tensor.shape[0],2,12,2)) # Not the prettiest, with hard-coded dimensions
@@ -227,7 +362,6 @@ class Conv2D_AE_Normalizer_ChannelRange():
         output_data[:,1::2]=(output_data[:,1::2]-self.ch2_min)/(self.ch2_max-self.ch2_min)
         return output_data
     
-    @tf.function
     def normalize_data_tf(self,tensor):
         output_tensor=tensor-self.subt_term
         output_tensor=output_tensor/self.div_coeff
@@ -239,15 +373,17 @@ class Conv2D_AE_Normalizer_ChannelRange():
         output_data[:,1::2]=output_data[:,1::2]*(self.ch2_max-self.ch2_min)+self.ch2_min
         return output_data
     
-    @tf.function
     def denormalize_data_tf(self,tensor):
         output_tensor=tensor*self.div_coeff
         output_tensor=output_tensor+self.subt_term
         return output_tensor
     
 
-class Conv2D_AE_Normalizer_ChannelScale():
+class Conv2D_AE_Normalizer_ChannelScale(Conv2D_AE_Normalizer_Base):
+
     def __init__(self):
+        super().__init__()
+
         self.factor_ch1=None
         self.factor_ch2=None
         self.subt_term=None
@@ -293,7 +429,6 @@ class Conv2D_AE_Normalizer_ChannelScale():
         S_rearr=np.array(S_rearr)
         return S_rearr
 
-    @tf.function
     def reorganize_into_original_tf(self, tensor):
         output_tensor=tf.reshape(tensor, (tensor.shape[0],48)) # Not the prettiest, with hard-coded dimensions
         output_tensor=tf.gather(output_tensor, indices=self.ids_order_to_orig, axis=1)
@@ -307,7 +442,6 @@ class Conv2D_AE_Normalizer_ChannelScale():
         S_rearr=S_rearr.reshape((S_rearr.shape[0],2,12,2)) # Not the prettiest, with hard-coded dimensions
         return S_rearr
     
-    @tf.function
     def reorganize_into_channels_tf(self, tensor):
         output_tensor=tf.gather(tensor, indices=self.ids_order_to_chan, axis=1)
         output_tensor=tf.reshape(output_tensor, (output_tensor.shape[0],2,12,2)) # Not the prettiest, with hard-coded dimensions
@@ -319,7 +453,6 @@ class Conv2D_AE_Normalizer_ChannelScale():
         output_data[:,1::2]=output_data[:,1::2]/self.ch2_factor
         return output_data
     
-    @tf.function
     def normalize_data_tf(self,tensor):
         output_tensor=tensor/self.div_coeff
         return output_tensor
@@ -330,14 +463,16 @@ class Conv2D_AE_Normalizer_ChannelScale():
         output_data[:,1::2]=output_data[:,1::2]*self.ch2_factor
         return output_data
     
-    @tf.function
     def denormalize_data_tf(self,tensor):
         output_tensor=tensor*self.div_coeff
         return output_tensor
     
     
-class Conv2D_AE_Normalizer_FeatureStand():
+class Conv2D_AE_Normalizer_FeatureStand(Conv2D_AE_Normalizer_Base):
+
     def __init__(self):
+        super().__init__()
+
         self.feat_means = None
         self.feat_stds = None
 
@@ -375,7 +510,6 @@ class Conv2D_AE_Normalizer_FeatureStand():
         S_rearr=np.array(S_rearr)
         return S_rearr
 
-    @tf.function
     def reorganize_into_original_tf(self, tensor):
         output_tensor=tf.reshape(tensor, (tensor.shape[0],48)) # Not the prettiest, with hard-coded dimensions
         output_tensor=tf.gather(output_tensor, indices=self.ids_order_to_orig, axis=1)
@@ -389,7 +523,6 @@ class Conv2D_AE_Normalizer_FeatureStand():
         S_rearr=S_rearr.reshape((S_rearr.shape[0],2,12,2)) # Not the prettiest, with hard-coded dimensions
         return S_rearr
     
-    @tf.function
     def reorganize_into_channels_tf(self, tensor):
         output_tensor=tf.gather(tensor, indices=self.ids_order_to_chan, axis=1)
         output_tensor=tf.reshape(output_tensor, (output_tensor.shape[0],2,12,2)) # Not the prettiest, with hard-coded dimensions
@@ -401,7 +534,6 @@ class Conv2D_AE_Normalizer_FeatureStand():
             output_data[:,i]=(output_data[:,i]-self.feat_means[i])/(self.feat_stds[i]+0.00000001)
         return output_data
     
-    @tf.function
     def normalize_data_tf(self,tensor):
         output_tensor=tensor-np.array([self.feat_means])
         output_tensor=output_tensor/(np.array([self.feat_stds])+0.00000001)
@@ -413,7 +545,6 @@ class Conv2D_AE_Normalizer_FeatureStand():
             output_data[:,i]= (output_data[:,i]*self.feat_stds[i])+self.feat_means[i]
         return output_data
     
-    @tf.function
     def denormalize_data_tf(self,tensor):
         output_tensor=tensor*np.array([self.feat_stds])
         output_tensor=output_tensor+np.array([self.feat_means])

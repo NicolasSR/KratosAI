@@ -35,8 +35,8 @@ from KratosMultiphysics.RomApplication.calculate_rom_basis_output_process import
 from KratosMultiphysics.RomApplication.randomized_singular_value_decomposition import RandomizedSingularValueDecomposition
 
 # import networks.dense_residual_ae as dense_residual_ae
-from networks.conv2d_residual_ae import  Conv2D_Residual_AE
-from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_FeatureStand
+from networks.smain_ae import  Conv2D_Residual_AE
+from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_ChannelScale, Conv2D_AE_Normalizer_FeatureStand
 
 def custom_loss(y_true, y_pred):
     y_diff = y_true-y_pred
@@ -60,6 +60,8 @@ def CreateRomAnalysisInstance(cls, global_model, parameters):
         def normalizer_selector(self, normalization_strategy):
             if normalization_strategy == 'channel_range':
                 return Conv2D_AE_Normalizer_ChannelRange()
+            if normalization_strategy == 'channel_scale':
+                return Conv2D_AE_Normalizer_ChannelScale()
             elif normalization_strategy == 'feature_stand':
                 return Conv2D_AE_Normalizer_FeatureStand()
             else:

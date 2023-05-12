@@ -167,7 +167,7 @@ if __name__ == "__main__":
     }
     
     ae_config = {
-        "name": 'OnlyRes_NoBias_NoForce_Augm_w0.0_lr0.001',
+        "name": 'OnlyRes_NoBias_NoForce_Augm_w0.1_lr0.001',
         "encoding_size": 1,
         "hidden_layers": ((8,(3,5),(1,2)),
                           (16,(3,5),(1,2))
@@ -175,7 +175,7 @@ if __name__ == "__main__":
         "batch_size": 1,
         "epochs": 100,
         "normalization_strategy": 'channel_scale',  # ['feature_stand','channel_range', 'channel_scale']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
         "residual_norm_factor": ('const',1.0),
         # "activation_functtion": tf.keras.activations.linear, ['elu', ]

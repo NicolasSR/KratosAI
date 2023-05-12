@@ -43,7 +43,7 @@ from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_erro
 from sklearn.model_selection import train_test_split
 
 import kratos_io
-from networks.conv2d_residual_ae import Conv2D_Residual_AE
+from networks.smain_ae import Conv2D_Residual_AE
 from utils.custom_metrics import mean_relative_l2_error, relative_forbenius_error, mean_l2_error, forbenius_error
 
 def print_gpu_info():
@@ -161,7 +161,8 @@ if __name__ == "__main__":
     def calculate_R_norm_error(S_input, R_true, F_true):
         R_true=R_true/1e9
         S_pred_norm=autoencoder(S_input).numpy()
-        R_pred=autoencoder.get_r_array(S_pred_norm, F_true)
+        S_pred_denorm = data_normalizer.process_input_to_raw_format(S_pred_norm)
+        R_pred=autoencoder.get_r_array(S_pred_denorm, F_true)
         l2_error=mean_relative_l2_error(R_true,R_pred)
         forb_error=relative_forbenius_error(R_true,R_pred)
         print('Residual. Mean rel L2 error l:', l2_error)
@@ -179,8 +180,6 @@ if __name__ == "__main__":
         print('X. Mean rel L2 error:', l2_error)
         print('X. Rel Forb. error:', forb_error)
 
-    print(F.shape)
-
     print('Test errors')
     calculate_X_norm_error(S_flat_orig_test, S_test)
     print('Train errors')
@@ -193,7 +192,6 @@ if __name__ == "__main__":
             plt.scatter(F[:,1],embeddings[i])
         plt.show()
 
-    print(F.shape)
     plot_embeddings()
 
     def print_x_and_r_vecs(sample_id):
@@ -203,7 +201,8 @@ if __name__ == "__main__":
         x_pred_flat_norm=data_normalizer.reorganize_into_original(x_pred_norm)
         x_pred_flat=data_normalizer.denormalize_data(x_pred_flat_norm)
         r_orig=np.expand_dims(R[sample_id]/1e9, axis=0)
-        r_pred=autoencoder.get_r_array(x_pred_norm,np.expand_dims(F[sample_id], axis=0))
+        x_pred_denorm = data_normalizer.process_input_to_raw_format(x_pred_norm)
+        r_pred=autoencoder.get_r_array(x_pred_denorm,np.expand_dims(F[sample_id], axis=0))
         print('x_orig:', x_orig)
         print('x_pred:', x_pred_flat)
         print('x_norm:', x_norm)
@@ -242,7 +241,7 @@ if __name__ == "__main__":
         plt.tight_layout()
         plt.show()
 
-    """     max_F=np.max(abs(F[:,1]))
+    max_F=np.max(abs(F[:,1]))
     min_F=np.min(abs(F[:,1]))
 
     print(max_F)
@@ -275,7 +274,7 @@ if __name__ == "__main__":
     # sample_id = S_test.shape[0]+1000
     # print(sample_id)
     # print(F[sample_id])
-    # print_x_and_r_vecs(sample_id) """
+    # print_x_and_r_vecs(sample_id)
 
     def draw_x_error_image():
         S_pred = autoencoder(S).numpy()

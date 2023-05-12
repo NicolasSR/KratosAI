@@ -66,20 +66,7 @@ if __name__ == "__main__":
 
     data_path='Kratos_results/'
 
-    rom_file='NN_ROM_finetuned1_noForce.npy'
-
-    # Get snapshots
-    S_fom, S_rom = prepare_input(data_path, rom_file)
-    print('Shape S_fom:', S_fom.shape)
-    print('Shape S_rom:', S_rom.shape)
-
-    print('Error norms')
-    calculate_X_norm_error(S_fom, S_rom)
-
-    draw_x_error_abs_image(S_fom, S_rom)
-    draw_x_error_rel_image(S_fom, S_rom)
-
-    rom_file='NN_ROM_finetuned2_noForce.npy'
+    rom_file='NN_ROM_onlyRes_proper.npy'
 
     # Get snapshots
     S_fom, S_rom = prepare_input(data_path, rom_file)

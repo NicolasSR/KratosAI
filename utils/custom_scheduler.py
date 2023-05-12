@@ -18,11 +18,11 @@ class CustomLearningRateScheduler(keras.callbacks.Callback):
           learning rate as output (float).
       verbose: int. 0: quiet, 1: update messages. """
 
-    def __init__(self, lr_schedule, w_schedule, r_norm_schedule, verbose=0):
+    def __init__(self, lr_schedule, w_schedule, lam_schedule, verbose=0):
         super().__init__()
         self.lr_schedule = lr_schedule
         self.w_schedule = w_schedule
-        self.r_norm_schedule = r_norm_schedule
+        self.lam_schedule = lam_schedule
         self.verbose = verbose
 
     def on_epoch_begin(self, epoch, logs=None):
@@ -31,10 +31,10 @@ class CustomLearningRateScheduler(keras.callbacks.Callback):
         try:  # new API
             lr = float(backend.get_value(self.model.optimizer.lr))
             w = float(self.model.w)
-            max_grad_diff = float(self.model.max_grad_diff)
+            lam = float(self.model.lam)
             lr = self.lr_schedule(epoch, lr)
             w = self.w_schedule(epoch, w)
-            r_norm_factor = self.r_norm_schedule(epoch, max_grad_diff)
+            lam = self.lam_schedule(epoch, lam)
         except TypeError:  # Support for old API for backward compatibility
             lr, w = self.schedule(epoch)
         if not isinstance(lr, (tf.Tensor, float, np.float32, np.float64)):
@@ -48,16 +48,15 @@ class CustomLearningRateScheduler(keras.callbacks.Callback):
             )
         backend.set_value(self.model.optimizer.lr, backend.get_value(lr))
         self.model.w = w
-        self.model.r_norm_factor=r_norm_factor
-        self.model.max_grad_diff=1.0
+        self.model.lam = lam
         if self.verbose > 0:
             io_utils.print_msg(
                 f"\nEpoch {epoch + 1}: CustomLearningRateScheduler setting"
-                f"learning rate to {lr} and w to {w}."
+                f"learning rate to {lr}, w to {w} and lambda to {lam}."
             )
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
         logs["lr"] = backend.get_value(self.model.optimizer.lr)
         logs["w"] = self.model.w
-        logs["r_norm_factor"] = self.model.r_norm_factor
+        logs["lam"] = self.model.lam
