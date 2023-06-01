@@ -3,9 +3,11 @@ import tensorflow as tf
 from tensorflow.keras.initializers import HeNormal
 
 from networks.base_ae_factory import Base_AE_Factory
-from networks.smain_ae import SnaphotMainAEModel
+from networks.smain_ae_graph_scalar import SnaphotMainAEModel
+from networks.sonly_ae import SnapshotOnlyAEModel
+from networks.rmain_ae_graph_scalar import ResidualMainAEModel
 
-from utils.normalizers import AE_Normalizer_SVD
+from utils.normalizers import AE_Normalizer_SVD, AE_Normalizer_ChannelScale
 
 class Dense_AE_Factory(Base_AE_Factory):
 
@@ -16,13 +18,21 @@ class Dense_AE_Factory(Base_AE_Factory):
         if '_smain' in ae_config["nn_type"]:
             print('Using SnaphotMainAEModel model with Dense architecture')
             return SnaphotMainAEModel
+        if '_sonly' in ae_config["nn_type"]:
+            print('Using SnaphotOnlyAEModel model with Dense architecture')
+            return SnapshotOnlyAEModel
+        if '_rmain' in ae_config["nn_type"]:
+            print('Using ResidualMainAEModel model with Dense architecture')
+            return ResidualMainAEModel
         else:
             print('No valid ae model was selected')
             return None
         
-    def normalizer_selector(self, normalization_strategy):
-        if normalization_strategy == 'svd':
-            return AE_Normalizer_SVD()
+    def normalizer_selector(self, working_path, ae_config):
+        if ae_config["normalization_strategy"] == 'svd':
+            return AE_Normalizer_SVD(working_path, ae_config["dataset_path"])
+        if ae_config["normalization_strategy"] == 'channel_scale':
+            return AE_Normalizer_ChannelScale()
         else:
             print('Normalization strategy is not valid')
             return None
@@ -60,7 +70,7 @@ class Dense_AE_Factory(Base_AE_Factory):
         self.decoder_model = tf.keras.Model(decod_input, decoder_out, name='Decoder')
         self.autoenco = keras_submodel(model_input, self.decoder_model(self.encoder_model(model_input)), name='Autoencoder')
         
-        self.autoenco.compile(optimizer=tf.keras.optimizers.experimental.AdamW(), run_eagerly=True, metrics=[self.my_metrics_function])
+        self.autoenco.compile(optimizer=tf.keras.optimizers.experimental.AdamW(), run_eagerly=self.autoenco.run_eagerly, metrics=[self.my_metrics_function])
 
         self.encoder_model.summary()
         self.decoder_model.summary()

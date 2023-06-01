@@ -3,9 +3,9 @@ import tensorflow as tf
 from tensorflow.keras.initializers import HeNormal
 
 from networks.base_ae_factory import Base_AE_Factory
-from networks.smain_ae import SnaphotMainAEModel
-from networks.conv2d_rmain_ae import  Conv2DResidualMainAEModel
-from networks.conv2d_sonly_ae import  Conv2DSnaphotOnlyAEModel
+from networks.smain_ae_graph_scalar import SnaphotMainAEModel
+from networks.rmain_ae_graph_scalar import  ResidualMainAEModel
+from networks.sonly_ae import  SnapshotOnlyAEModel
 
 from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_FeatureStand, Conv2D_AE_Normalizer_ChannelScale
 
@@ -20,20 +20,20 @@ class Conv2D_AE_Factory(Base_AE_Factory):
             return SnaphotMainAEModel
         elif '_rmain' in ae_config["nn_type"]:
             print('Using Conv2DResidualMainAEModel model')
-            return Conv2DResidualMainAEModel
+            return ResidualMainAEModel
         elif '_sonly' in ae_config["nn_type"]:
             print('Using Conv2DSnaphotOnlyAEModel model')
-            return Conv2DSnaphotOnlyAEModel
+            return SnapshotOnlyAEModel
         else:
             print('No valid ae model was selected')
             return None
         
-    def normalizer_selector(self, normalization_strategy):
-        if normalization_strategy == 'channel_range':
+    def normalizer_selector(self, working_path, ae_config):
+        if ae_config["normalization_strategy"] == 'channel_range':
             return Conv2D_AE_Normalizer_ChannelRange()
-        elif normalization_strategy == 'channel_scale':
+        elif ae_config["normalization_strategy"] == 'channel_scale':
             return Conv2D_AE_Normalizer_ChannelScale()
-        elif normalization_strategy == 'feature_stand':
+        elif ae_config["normalization_strategy"] == 'feature_stand':
             return Conv2D_AE_Normalizer_FeatureStand()
         else:
             print('Normalization strategy is not valid')
@@ -82,7 +82,7 @@ class Conv2D_AE_Factory(Base_AE_Factory):
         self.decoder_model = tf.keras.Model(decod_input, decoder_out, name='Decoder')
         self.autoenco = keras_submodel(model_input, self.decoder_model(self.encoder_model(model_input)), name='Autoencoder')
         
-        self.autoenco.compile(optimizer=tf.keras.optimizers.experimental.AdamW(), run_eagerly=True, metrics=[self.my_metrics_function])
+        self.autoenco.compile(optimizer=tf.keras.optimizers.experimental.AdamW(), run_eagerly=self.autoenco.run_eagerly, metrics=[self.my_metrics_function])
 
         self.encoder_model.summary()
         self.decoder_model.summary()

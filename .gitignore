@@ -8,8 +8,11 @@
 /saved_models_conv2d_proof/
 /saved_models_conv2d_experimental/
 /saved_models_conv2d_scipy/
+/saved_models_newexample/
 /logs/
 /datasets_low/
 /datasets_low_big/
 /datasets_rommanager/
+/datasets_two_forces/
+/datasets_two_forces_thin/
 /saved_models_conv2d_augm/

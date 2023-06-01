@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
 
 
-    with open("saved_models_conv2d/history.json", "r") as history_file:
+    with open("saved_models_newexample/history.json", "r") as history_file:
         history=json.load(history_file)
 
     fig, ax1 = plt.subplots()
@@ -39,11 +39,11 @@ if __name__ == "__main__":
     try:
         color = 'tab:blue'
         ax2.set_ylabel('r_loss', color=color)  # we already handled the x-label with ax1
-        plt.plot(np.arange(len(history['err_r'])), history['err_r'], label='r_train', color='blue')
+        plt.plot(np.arange(len(history['loss_r'])), history['loss_r'], label='r_train', color='blue')
         try:
-            plt.plot(np.arange(len(history['val_err_r'])), history['val_err_r'], label='r_val', color='cyan')
+            plt.plot(np.arange(len(history['val_loss_r'])), history['val_loss_r'], label='r_val', color='cyan')
         except:
-            print('No val_err_r data')
+            print('No val_loss_r data')
         ax2.set_yscale('log')
         ax2.tick_params(axis='y', labelcolor=color)
     except:

@@ -4,12 +4,14 @@ import tensorflow as tf
 import abc
 
 from KratosMultiphysics.RomApplication.randomized_singular_value_decomposition import RandomizedSingularValueDecomposition
+import matplotlib.pyplot as plt
+
 
 class AE_Normalizer_Base(abc.ABC):
 
     def __init__(self):
         super().__init__()
-        self.needs_truncation=True
+        self.needs_cropping=True
 
     def process_raw_to_input_format(self, data):
         data_norm = self.normalize_data(data)
@@ -51,29 +53,56 @@ class AE_Normalizer_Base(abc.ABC):
 
 
 class AE_Normalizer_SVD(AE_Normalizer_Base):
-    def __init__(self):
+    def __init__(self, working_path, dataset_path):
         super().__init__()
         self.phi=None
-        self.needs_truncation=False
+        self.phi_tf=None
+        self.needs_cropping=False
+        self.feat_factors = None
+        self.feat_factors_tf = None
+        self.dataset_path=working_path+dataset_path
 
     def configure_normalization_data(self, S):
-        self.phi,sigma,_,error = RandomizedSingularValueDecomposition().Calculate(S.T,1e-16)
+        try:
+            self.phi=np.load(self.dataset_path+'svd_phi.npy')
+        except IOError:
+            print("No precomputed phi matrix found. Computing a new one")
+            self.phi,sigma,_,error = RandomizedSingularValueDecomposition().Calculate(S.T,1e-16)
+            np.save(self.dataset_path+'svd_phi.npy', self.phi)
+        
         print('Phi matrix shape: ', self.phi.shape)
+        self.phi_tf=tf.constant(self.phi)
+        
+        S_svd=np.matmul(self.phi.T,S.T).T
+        self.feat_factors = []
+        print('Scaling each feature in S_svd')
+        abs_S_df = pd.DataFrame(np.abs(S_svd))
+        for i in range(len(abs_S_df.columns)):
+            self.feat_factors.append(abs_S_df[i].max())
+        self.feat_factors_tf = tf.constant(self.feat_factors)
 
     def normalize_data(self, data):
         output_data=np.matmul(self.phi.T,data.T).T
+        output_data=np.divide(output_data, self.feat_factors)
+
         return output_data
     
     def normalize_data_tf(self,tensor):
-        output_tensor=tf.transpose(tf.linalg.matmul(tf.transpose(self.phi),tf.transpose(tensor)))
+        output_tensor=tf.transpose(tf.linalg.matmul(tf.transpose(self.phi_tf),tf.transpose(tensor)))
+        output_tensor=tf.math.divide(output_tensor,self.feat_factors_tf)
+        # output_tensor=output_tensor/self.feat_factors
         return output_tensor
 
     def denormalize_data(self, data):
-        output_data=np.matmul(self.phi,data).T
+        output_data=np.multiply(data, self.feat_factors)
+        output_data=np.matmul(self.phi,output_data.T).T
         return output_data
     
     def denormalize_data_tf(self,tensor):
-        output_tensor=tf.transpose(tf.linalg.matmul(self.phi,tensor))
+        # output_tensor=tensor*self.feat_factors
+        output_tensor=tf.math.multiply(tensor,self.feat_factors_tf)
+        # output_tensor=tf.transpose(tf.linalg.matmul(self.phi_tf,tf.transpose(output_tensor)))
+        output_tensor=tf.transpose(tf.linalg.matmul(self.phi_tf,output_tensor,transpose_b=True))
         return output_tensor
 
 
@@ -124,22 +153,23 @@ class AE_Normalizer_ChannelScale(AE_Normalizer_Base):
         super().__init__()
         self.factor_ch1=None
         self.factor_ch2=None
-        self.subt_term=None
         self.div_coeff=None
 
     def configure_normalization_data(self, S):
-        ch1_max=np.max(S[:,:,:,1])
-        ch1_min=np.min(S[:,:,:,1])
+        ch1_max=np.max(S[:,0::2])
+        ch1_min=np.min(S[:,0::2])
         if abs(ch1_max)>abs(ch1_min):
             self.ch1_factor=ch1_max
         else:
             self.ch1_factor=ch1_min
-        ch2_max=np.max(S[:,:,:,1])
-        ch2_min=np.min(S[:,:,:,1])
+        ch2_max=np.max(S[:,1::2])
+        ch2_min=np.min(S[:,1::2])
         if abs(ch2_max)>abs(ch2_min):
             self.ch2_factor=ch2_max
         else:
             self.ch2_factor=ch2_min
+        print(self.ch1_factor)
+        print(self.ch2_factor)
 
         aux=np.arange(S.shape[1])
         self.div_coeff=np.expand_dims(np.where(aux%2==0, self.ch1_factor, self.ch2_factor),axis=0)
@@ -234,7 +264,7 @@ class Conv2D_AE_Normalizer_Base(abc.ABC):
 
     def __init__(self):
         super().__init__()
-        self.needs_truncation=True
+        self.needs_cropping=True
 
     def process_raw_to_input_format(self, data):
         data_norm = self.normalize_data(data)

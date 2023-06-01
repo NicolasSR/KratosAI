@@ -16,6 +16,9 @@ import KratosMultiphysics.StructuralMechanicsApplication as SMA
 from KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_analysis import StructuralMechanicsAnalysis
 from fom_analysis import CreateRomAnalysisInstance
 
+from utils.kratos_simulation import KratosSimulator
+
+from sys import argv
 
 def generate_finetune_datasets(dataset_path):
 
@@ -79,7 +82,7 @@ def generate_training_datasets(dataset_path):
         np.save(f, F_test)
 
 def InitializeKratosAnalysis():
-    with open("ProjectParameters_fom.json", 'r') as parameter_file:
+    with open("ProjectParameters_fom_2forces.json", 'r') as parameter_file:
         parameters = KMP.Parameters(parameter_file.read())
 
     analysis_stage_class = StructuralMechanicsAnalysis
@@ -89,77 +92,87 @@ def InitializeKratosAnalysis():
     fake_simulation.Initialize()
     fake_simulation.InitializeSolutionStep()
 
-    return fake_simulation
+    modelpart = fake_simulation._GetSolver().GetComputingModelPart()
+    cropped_dof_ids=[]
+    for node in modelpart.Nodes:
+        if node.IsFixed(KMP.DISPLACEMENT_X):
+            cropped_dof_ids.append((node.Id-1)*2)
+        if node.IsFixed(KMP.DISPLACEMENT_Y):
+            cropped_dof_ids.append(node.Id*2-1)
 
-def project_prediction(snapshot, f, modelpart):
-        values = snapshot
+    return fake_simulation, cropped_dof_ids
 
-        itr = 0
-        for node in modelpart.Nodes:
-            if not node.IsFixed(KMP.DISPLACEMENT_X):
-                node.SetSolutionStepValue(KMP.DISPLACEMENT_X, values[itr+0])
-                node.X = node.X0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_X)
+# def project_prediction(snapshot, f, modelpart):
+#         values = snapshot
 
-            if not node.IsFixed(KMP.DISPLACEMENT_Y):
-                node.SetSolutionStepValue(KMP.DISPLACEMENT_Y, values[itr+1])
-                node.Y = node.Y0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_Y)
+#         itr = 0
+#         for node in modelpart.Nodes:
+#             if not node.IsFixed(KMP.DISPLACEMENT_X):
+#                 node.SetSolutionStepValue(KMP.DISPLACEMENT_X, values[itr+0])
+#                 node.X = node.X0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_X)
 
-            if not node.IsFixed(KMP.DISPLACEMENT_X):
-                itr += 2
+#             if not node.IsFixed(KMP.DISPLACEMENT_Y):
+#                 node.SetSolutionStepValue(KMP.DISPLACEMENT_Y, values[itr+1])
+#                 node.Y = node.Y0 + node.GetSolutionStepValue(KMP.DISPLACEMENT_Y)
+
+#             itr += 2
         
-        if f is not None:
-            f_value=f[0]
-            for condition in modelpart.Conditions:
-                condition.SetValue(SMA.POINT_LOAD, f_value)
+#         if f is not None:
+#             f_value=f[0]
+#             for condition in modelpart.Conditions:
+#                 condition.SetValue(SMA.POINT_LOAD, f_value)
 
-def get_r(fake_simulation, snapshot, f):
-        snapshot = snapshot[4:]
-        space =     KMP.UblasSparseSpace()
-        strategy  = fake_simulation._GetSolver()._GetSolutionStrategy()
-        buildsol  = fake_simulation._GetSolver()._GetBuilderAndSolver()
-        scheme    = KMP.ResidualBasedIncrementalUpdateStaticScheme()
-        modelpart = fake_simulation._GetSolver().GetComputingModelPart()
+# def get_r(fake_simulation, snapshot, f):
+#         # snapshot = snapshot[4:]
 
-        A = strategy.GetSystemMatrix()
-        b = strategy.GetSystemVector()
+#         space =     KMP.UblasSparseSpace()
+#         strategy  = fake_simulation._GetSolver()._GetSolutionStrategy()
+#         buildsol  = fake_simulation._GetSolver()._GetBuilderAndSolver()
+#         scheme    = KMP.ResidualBasedIncrementalUpdateStaticScheme()
+#         modelpart = fake_simulation._GetSolver().GetComputingModelPart()
 
-        space.SetToZeroMatrix(A)
-        space.SetToZeroVector(b)
+#         A = strategy.GetSystemMatrix()
+#         b = strategy.GetSystemVector()
 
-        project_prediction(snapshot, f, modelpart)
+#         space.SetToZeroMatrix(A)
+#         space.SetToZeroVector(b)
 
-        buildsol.Build(scheme, modelpart, A, b)
+#         project_prediction(snapshot, f, modelpart)
 
-        # buildsol.ApplyDirichletConditions(scheme, modelpart, A, b, b)
+#         buildsol.Build(scheme, modelpart, A, b)
 
-        b=np.array(b)
+#         # buildsol.ApplyDirichletConditions(scheme, modelpart, A, b, b)
 
-        Ascipy = scipy.sparse.csr_matrix((A.value_data(), A.index2_data(), A.index1_data()), shape=(A.Size1(), A.Size2()))
+#         b=np.array(b)
 
-        raw_A = -Ascipy.todense()
-        raw_A = raw_A[:,4:]
+#         Ascipy = scipy.sparse.csr_matrix((A.value_data(), A.index2_data(), A.index1_data()), shape=(A.Size1(), A.Size2()))
+
+#         raw_A = -Ascipy.todense()
+#         # raw_A = raw_A[:,4:]
         
-        return b
+#         return b
 
-def apply_random_noise(x_true):
-        v=np.random.rand(x_true[4:].shape[0])
+def apply_random_noise(x_true, cropped_dof_ids):
+        v=np.random.rand(x_true.shape[0]-len(cropped_dof_ids))
         v=v/np.linalg.norm(v)
         eps=np.random.rand()*1e-4
         v=v*eps
         x_app=x_true
-        x_app[4:]=x_app[4:]+v
+        # print(x_app[4779:])
+        x_app[~np.isin(np.arange(len(x_app)), cropped_dof_ids)]=x_app[~np.isin(np.arange(len(x_app)), cropped_dof_ids)]+v
+        # print(x_app[4779:])
 
         return x_app
 
-def generate_augm_finetune_datasets(dataset_path, augm_order):
+def generate_augm_finetune_datasets(dataset_path, kratos_simulation, augm_order):
     
-    # Create a fake Analysis stage to calculate the predicted residuals
-    fake_simulation = InitializeKratosAnalysis()
+    cropped_dof_ids = kratos_simulation.get_cropped_dof_ids()
+    
     with open(dataset_path+"S_finetune_train.npy", "rb") as f:
         S_train=np.load(f)
     with open(dataset_path+"F_finetune_train.npy", "rb") as f:
         F_train=np.load(f)
-    with open(dataset_path+"R_finetune_train.npy", "rb") as f:
+    with open(dataset_path+"R_finetune_noF_train.npy", "rb") as f:
         R_train=np.load(f)
 
     S_augm=[]
@@ -171,8 +184,8 @@ def generate_augm_finetune_datasets(dataset_path, augm_order):
         F_augm.append(F_train[i])
         R_augm.append(R_train[i])
         for n in range(augm_order):
-            s_noisy = apply_random_noise(S_train[i])
-            r_noisy = get_r(fake_simulation, s_noisy, F_train[i])
+            s_noisy = apply_random_noise(S_train[i], cropped_dof_ids)
+            _, r_noisy = kratos_simulation.get_r(np.expand_dims(s_noisy, axis=0), None)
             S_augm.append(s_noisy)
             F_augm.append(F_train[i])
             R_augm.append(r_noisy)
@@ -186,38 +199,84 @@ def generate_augm_finetune_datasets(dataset_path, augm_order):
 
     with open(dataset_path+"S_augm_train.npy", "wb") as f:
         np.save(f, S_augm)
-    with open(dataset_path+"R_augm_train.npy", "wb") as f:
+    # with open(dataset_path+"R_augm_train.npy", "wb") as f:
+    with open(dataset_path+"R_augm_noF_train.npy", "wb") as f:
         np.save(f, R_augm)
     with open(dataset_path+"F_augm_train.npy", "wb") as f:
         np.save(f, F_augm)
 
-def generate_residuals_noforce(dataset_path):
+def generate_residuals_noforce(dataset_path, kratos_simulation):
     
-    # Create a fake Analysis stage to calculate the predicted residuals
-    fake_simulation = InitializeKratosAnalysis()
-    with open(dataset_path+"S_finetune_train.npy", "rb") as f:
-        S_train=np.load(f)
+    #Train dataset
+    # with open(dataset_path+"S_finetune_train.npy", "rb") as f:
+    #     S_train=np.load(f)
 
-    R_noF_train=[]
+    # R_noF_train=[]
 
-    for i in range(S_train.shape[0]):
-        r_true = get_r(fake_simulation, S_train[i], None)
-        R_noF_train.append(r_true)
+    # for i in range(S_train.shape[0]):
+    #     _, r_true = kratos_simulation.get_r(np.expand_dims(S_train[i], axis=0), None)
+    #     # r_true = get_r(fake_simulation, S_train[i], None)
+    #     R_noF_train.append(r_true)
+
+    #     if i%100 == 0:
+    #         print('Iteration: ', i, 'of ', S_train.shape[0], '. Current length: ', len(R_noF_train))
+    
+    # R_noF_train=np.array(R_noF_train)
+
+    # with open(dataset_path+"R_finetune_noF_train.npy", "wb") as f:
+    #     np.save(f, R_noF_train)
+
+    #Test dataset
+    with open(dataset_path+"S_finetune_test.npy", "rb") as f:
+        S_test=np.load(f)
+
+    R_noF_test=[]
+
+    for i in range(S_test.shape[0]):
+        _, r_true = kratos_simulation.get_r(np.expand_dims(S_test[i], axis=0), None)
+        # r_true = get_r(fake_simulation, S_test[i], None)
+        R_noF_test.append(r_true)
 
         if i%100 == 0:
-            print('Iteration: ', i, 'of ', S_train.shape[0], '. Current length: ', len(R_noF_train))
+            print('Iteration: ', i, 'of ', S_test.shape[0], '. Current length: ', len(R_noF_test))
     
-    R_noF_train=np.array(R_noF_train)
+    R_noF_test=np.array(R_noF_test)
 
-    with open(dataset_path+"R_finetune_noF_train.npy", "wb") as f:
-        np.save(f, R_noF_train)
+    with open(dataset_path+"R_finetune_noF_test.npy", "wb") as f:
+        np.save(f, R_noF_test)
 
+def join_datasets(dataset_path):
+    S1=np.load(dataset_path+"FOM_POINTLOADS_1.npy")
+    S2=np.load(dataset_path+"FOM_POINTLOADS_2.npy")
+    S3=np.load(dataset_path+"FOM_POINTLOADS_3.npy")
+    S4=np.load(dataset_path+"FOM_POINTLOADS_4.npy")
+    S5=np.load(dataset_path+"FOM_POINTLOADS_5.npy")
+    S6=np.load(dataset_path+"FOM_POINTLOADS_6.npy")
+
+    S=np.concatenate([S1,S2,S3,S4,S5], axis=0)
+    np.save(dataset_path+"F_finetune_train.npy", S)
+    print(S.shape)
 
 if __name__ == "__main__":
 
-    dataset_path='datasets_rommanager/'
+    ae_config = {
+        "nn_type": 'standard_config', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+        "name": 'standard_config',
+        "dataset_path": 'datasets_two_forces/',
+        "project_parameters_file":'ProjectParameters_fom.json',
+        "use_force":False
+     }
+
+    dataset_path=ae_config["dataset_path"]
+
+    # Create a fake Analysis stage to calculate the predicted residuals
+    working_path=argv[1]+"/"
+    needs_truncation=False
+    residual_scale_factor=1.0
+    kratos_simulation = KratosSimulator(working_path, ae_config, needs_truncation,residual_scale_factor)
 
     # generate_training_datasets(dataset_path)
     # generate_finetune_datasets(dataset_path)
-    # generate_augm_finetune_datasets(dataset_path, 3)
-    generate_residuals_noforce(dataset_path)
+    generate_augm_finetune_datasets(dataset_path, kratos_simulation, 2)
+    # generate_residuals_noforce(dataset_path, kratos_simulation, )
+    # join_datasets(dataset_path)

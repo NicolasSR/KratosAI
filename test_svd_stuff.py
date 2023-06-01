@@ -20,7 +20,3 @@ if __name__ == "__main__":
     # plt.show()
 
     print(Phi[:10])
-
-    print()
-    
-

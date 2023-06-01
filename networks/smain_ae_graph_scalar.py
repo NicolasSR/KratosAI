@@ -39,17 +39,33 @@ class SnaphotMainAEModel(keras.Model):
         return (y_pred) ** 2
 
     @tf.function
-    def get_jacobians(self, trainable_vars, x_true, b_true):
-        with tf.GradientTape(persistent=True) as tape_d:
+    def get_gradients_x(self, trainable_vars, x_true):
+
+        with tf.GradientTape(persistent=False) as tape_d:
             tape_d.watch(trainable_vars)
             x_pred = self(x_true, training=True)
-            loss_x = self.diff_norm_loss(x_true, x_pred)
-            x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
-
+            loss_x=tf.math.pow(x_true-x_pred,2)     
         grad_loss_x = tape_d.gradient(loss_x,trainable_vars)
-        jac_u = tape_d.jacobian(x_pred_denorm, trainable_vars, unconnected_gradients=tf.UnconnectedGradients.ZERO, experimental_use_pfor=False)
+        x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
 
-        return grad_loss_x, jac_u, loss_x, x_pred_denorm
+        return grad_loss_x, loss_x, x_pred_denorm
+
+    @tf.function
+    def get_gradients_r(self, trainable_vars, x_true, err_r, A_pred):
+
+        err_r=tf.squeeze(err_r,axis=0)
+        v_vec=-1.0*tf.linalg.matmul(err_r,A_pred,b_is_sparse=True)
+        # v_vec=-1.0*tf.linalg.matmul(err_r,A_pred)
+        # v_vec=err_r
+
+        with tf.GradientTape(persistent=False) as tape_d:
+            tape_d.watch(trainable_vars)
+            x_pred = self(x_true, training=True)
+            x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
+            v_u_dotprod = tf.linalg.matmul(v_vec, x_pred_denorm, transpose_b=True)
+        grad_loss_r=tape_d.gradient(v_u_dotprod, trainable_vars)
+
+        return grad_loss_r
     
     @tf.function
     def get_jacobians_lam(self, trainable_vars, x_true, b_true):
@@ -74,59 +90,45 @@ class SnaphotMainAEModel(keras.Model):
         batch_len=x_true_batch.shape[0]
 
         total_gradients = []
+        for i in range(len(trainable_vars)):
+            total_gradients.append(tf.zeros_like(trainable_vars[i]))
+
         total_loss_x = 0
         total_loss_r = 0
         total_loss_orth = 0
 
         for sample_id in range(batch_len):
-            x_true=np.expand_dims(x_true_batch[sample_id], axis=0)
-            r_orig=np.expand_dims(r_orig_batch[sample_id], axis=0)
-            f_true=np.expand_dims(f_true_batch[sample_id], axis=0)
+            x_true=tf.constant(np.expand_dims(x_true_batch[sample_id], axis=0))
+            r_orig=tf.constant(np.expand_dims(r_orig_batch[sample_id], axis=0))
+            f_true=tf.constant(np.expand_dims(f_true_batch[sample_id], axis=0))
             
-            # print('Scale factor:', self.residual_scale_factor)
             b_true=r_orig/self.residual_scale_factor
             
             if self.lam == 0.0:
-                grad_loss_x, jac_u, loss_x, x_pred_denorm = self.get_jacobians(trainable_vars, x_true, b_true)
+                grad_loss_x, loss_x, x_pred_denorm = self.get_gradients_x(trainable_vars, x_true)
                 loss_orth=0.0
                 grad_loss_orth=grad_loss_x  # This is very ugly. The idea is that we just need this variable to have the shape of grad_loss_x.
                                             # The values will be multiplied by zero later
             else:
-                grad_loss_x, jac_u, loss_x, x_pred_denorm, loss_orth, grad_loss_orth = self.get_jacobians(trainable_vars, x_true, b_true)
+                grad_loss_x, jac_u, loss_x, x_pred_denorm, loss_orth, grad_loss_orth = self.get_jacobians_lam(trainable_vars, x_true, b_true)
             
             total_loss_x+=loss_x
             total_loss_orth+=loss_orth
 
             A_pred, b_pred = self.kratos_simulation.get_r(x_pred_denorm,f_true)
             A_pred  = tf.constant(A_pred)
+            b_pred  = tf.constant(b_pred)
 
             err_r = b_true-b_pred
             err_r = tf.expand_dims(tf.constant(err_r),axis=0)
             loss_r = self.diff_norm_loss(b_true, b_pred)
             total_loss_r+=loss_r
 
-            i=0
-            for layer in jac_u:
+            grad_loss_r = self.get_gradients_r(trainable_vars, x_true, err_r, A_pred)
 
-                l_shape=layer.shape
+            for i in range(len(total_gradients)):
+                total_gradients[i]+=grad_loss_x[i]+self.w*grad_loss_r[i]+self.lam*grad_loss_orth[i]
 
-                last_dim_size=1
-                for dim in l_shape[2:]:
-                    last_dim_size=last_dim_size*dim
-                layer=tf.reshape(layer,(l_shape[0],l_shape[1],last_dim_size))
-                
-                pre_grad=tf.linalg.matmul(A_pred,tf.squeeze(layer,axis=0),a_is_sparse=True)
-
-                grad_loss_r=tf.linalg.matmul(err_r,pre_grad)*(-2)
-                
-                grad_loss_r=tf.reshape(grad_loss_r, l_shape[2:])
-
-                if sample_id == 0:
-                    total_gradients.append(grad_loss_x[i]+self.w*grad_loss_r+self.lam*grad_loss_orth[i])
-                else:
-                    total_gradients[i]+=grad_loss_x[i]+self.w*grad_loss_r+self.lam*grad_loss_orth[i]
-                
-                i+=1
 
         for i in range(len(total_gradients)):
             total_gradients[i]=total_gradients[i]/batch_len
@@ -160,7 +162,7 @@ class SnaphotMainAEModel(keras.Model):
 
             b_true=r_orig/self.residual_scale_factor
 
-            x_pred = self(x_true, training=True)
+            x_pred = self(x_true, training=False)
             loss_x = self.diff_norm_loss(x_true, x_pred)
             total_loss_x+=loss_x
             x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)

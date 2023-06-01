@@ -7,14 +7,18 @@ import keras
 import tensorflow as tf
 
 
-class Conv2DSnaphotOnlyAEModel(keras.Model):
+class SnapshotOnlyAEModel(keras.Model):
 
     def __init__(self,*args,**kwargs):
-        super(Conv2DSnaphotOnlyAEModel,self).__init__(*args,**kwargs)
+        super(SnapshotOnlyAEModel,self).__init__(*args,**kwargs)
         self.loss_x_tracker = keras.metrics.Mean(name="loss_x")
         self.kratos_simulation = None
+        self.w=0
+        self.lam=0
 
-    def set_config_values(self, ae_config, data_normalizer, kratos_simulation):
+        self.run_eagerly=False
+
+    def set_config_values(self, ae_config, data_normalizer, kratos_simulation, residual_scale_factor):
         self.data_normalizer=data_normalizer
         self.kratos_simulation=kratos_simulation
 
@@ -35,7 +39,7 @@ class Conv2DSnaphotOnlyAEModel(keras.Model):
         total_loss_x = 0
 
         for sample_id in range(batch_len):
-            x_true=np.expand_dims(x_true_batch[sample_id], axis=0)
+            x_true=tf.expand_dims(x_true_batch[sample_id], axis=0)
 
             with tf.GradientTape(persistent=True) as tape_d:
                 tape_d.watch(trainable_vars)
@@ -72,9 +76,9 @@ class Conv2DSnaphotOnlyAEModel(keras.Model):
         total_loss_x = 0
 
         for sample_id in range(batch_len):
-            x_true=np.expand_dims(x_true_batch[sample_id], axis=0)
+            x_true=tf.expand_dims(x_true_batch[sample_id], axis=0)
 
-            x_pred = self(x_true, training=True)
+            x_pred = self(x_true, training=False)
             loss_x = self.diff_norm_loss(x_true, x_pred)
             total_loss_x+=loss_x
                 
@@ -99,7 +103,4 @@ class Conv2DSnaphotOnlyAEModel(keras.Model):
         # or at the start of `evaluate()`.
         # If you don't implement this property, you have to call
         # `reset_states()` yourself at the time of your choosing.
-        if self.w==0.0:
-            return [self.loss_x_tracker]
-        else:
-            return [self.loss_x_tracker, self.loss_r_tracker, self.loss_orth_tracker]
+        return [self.loss_x_tracker]

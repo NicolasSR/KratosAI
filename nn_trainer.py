@@ -19,31 +19,34 @@ from utils.kratos_simulation import KratosSimulator
 from networks.conv2d_ae_factory import  Conv2D_AE_Factory
 from networks.dense_ae_factory import Dense_AE_Factory
 
+import matplotlib.pyplot as plt
+
 tf.keras.backend.set_floatx('float64')
 
 class NN_Trainer():
-    def __init__(self,ae_config):
+    def __init__(self,working_path,ae_config):
+        self.working_path=working_path
         self.ae_config=ae_config
 
     def setup_output_directory(self):
-        self.case_path=self.ae_config["models_path"]+self.ae_config["name"]+"/"
+        self.case_path=self.working_path+self.ae_config["models_path"]+self.ae_config["name"]+"/"
         os.makedirs(os.path.dirname(self.case_path), exist_ok=True)
         os.makedirs(os.path.dirname(self.case_path+"best/"), exist_ok=True)
         os.makedirs(os.path.dirname(self.case_path+"last/"), exist_ok=True)
     
     def prepare_input_augmented(self, dataset_path, use_force, cropped_ids):
-        S_flat_orig=np.load(dataset_path+'FOM.npy')
-        S_flat_orig_train=np.load(dataset_path+'S_augm_train.npy')
-        S_flat_orig_test=np.load(dataset_path+'S_finetune_test.npy')
+        S_flat_orig=np.load(self.working_path+dataset_path+'FOM.npy')
+        S_flat_orig_train=np.load(self.working_path+dataset_path+'S_augm_train.npy')
+        S_flat_orig_test=np.load(self.working_path+dataset_path+'S_finetune_test.npy')
         if use_force is None or use_force == True:
-            R_train=np.load(dataset_path+'R_augm_train.npy')
-            R_test=np.load(dataset_path+'R_finetune_test.npy')
+            R_train=np.load(self.working_path+dataset_path+'R_augm_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_test.npy')
         else:
             print('Not using Force')
-            R_train=np.load(dataset_path+'R_augm_noF_train.npy')
-            R_test=np.load(dataset_path+'R_finetune_noF_test.npy')
-        F_train=np.load(dataset_path+'F_augm_train.npy')[:,0,:]
-        F_test=np.load(dataset_path+'F_finetune_test.npy')[:,0,:]
+            R_train=np.load(self.working_path+dataset_path+'R_augm_noF_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
+        F_train=np.load(self.working_path+dataset_path+'F_augm_train.npy')[:,0,:]
+        F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')[:,0,:]
 
         S_flat_orig=np.delete(S_flat_orig, cropped_ids, axis=1)
         S_flat_orig_train=np.delete(S_flat_orig_train, cropped_ids, axis=1)
@@ -52,19 +55,19 @@ class NN_Trainer():
         return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
 
     def prepare_input_finetune(self, dataset_path, use_force, cropped_ids):
-        S_flat_orig=np.load(dataset_path+'FOM.npy')[:,4:]
-        S_flat_orig_train=np.load(dataset_path+'S_finetune_noF_train.npy')[:,4:]
-        S_flat_orig_test=np.load(dataset_path+'S_finetune_test.npy')[:,4:]
+        S_flat_orig=np.load(self.working_path+dataset_path+'FOM.npy')
+        S_flat_orig_train=np.load(self.working_path+dataset_path+'S_finetune_train.npy')
+        S_flat_orig_test=np.load(self.working_path+dataset_path+'S_finetune_test.npy')
 
         if use_force is None or use_force == True:
-            R_train=np.load(dataset_path+'R_finetune_train.npy')
-            R_test=np.load(dataset_path+'R_finetune_test.npy')
+            R_train=np.load(self.working_path+dataset_path+'R_finetune_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_test.npy')
         else:
             print('Not using Force')
-            R_train=np.load(dataset_path+'R_finetune_noF_train.npy')
-            R_test=np.load(dataset_path+'R_finetune_noF_test.npy')
-        F_train=np.load(dataset_path+'F_finetune_train.npy')[:,0,:]
-        F_test=np.load(dataset_path+'F_finetune_test.npy')[:,0,:]
+            R_train=np.load(self.working_path+dataset_path+'R_finetune_noF_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
+        F_train=np.load(self.working_path+dataset_path+'F_finetune_train.npy')[:,0,:]
+        F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')[:,0,:]
 
         S_flat_orig=np.delete(S_flat_orig, cropped_ids, axis=1)
         S_flat_orig_train=np.delete(S_flat_orig_train, cropped_ids, axis=1)
@@ -89,10 +92,11 @@ class NN_Trainer():
         network_factory = self.network_factory_selector(self.ae_config["nn_type"])
 
         # Select the type of preprocessimg (normalisation). This also decides if cropping the snapshot is needed
-        data_normalizer=network_factory.normalizer_selector(self.ae_config["normalization_strategy"])
+        data_normalizer=network_factory.normalizer_selector(self.working_path, self.ae_config)
 
         # Create a fake Analysis stage to calculate the predicted residuals
-        kratos_simulation = KratosSimulator(self.ae_config, data_normalizer.needs_truncation)
+        residual_scale_factor=np.load(self.working_path+self.ae_config['dataset_path']+'residual_scale_factor.npy')
+        kratos_simulation = KratosSimulator(self.working_path, self.ae_config, data_normalizer.needs_cropping, residual_scale_factor)
 
         # Get input data
         if self.ae_config["augmented"]:
@@ -116,15 +120,21 @@ class NN_Trainer():
         print('Shape S_train: ', S_train.shape)
         print('Shape S_test: ', S_test.shape)
 
+        # import matplotlib.pyplot as plt
+        # print(S.shape)
+        # plt.boxplot(S)
+        # plt.show()
+        # exit()
+
         # Load the autoencoder model
         print('======= Instantiating new autoencoder =======')
         autoencoder, encoder, decoder = network_factory.define_network(S, self.ae_config)
 
         if not self.ae_config["finetune_from"] is None:
             print('======= Loading saved weights =======')
-            autoencoder.load_weights(self.ae_config["finetune_from"]+'model_weights.h5')
+            autoencoder.load_weights(self.working_path+self.ae_config["finetune_from"]+'model_weights.h5')
 
-        autoencoder.set_config_values(self.ae_config, data_normalizer, kratos_simulation)
+        autoencoder.set_config_values(self.ae_config, data_normalizer, kratos_simulation, residual_scale_factor)
 
         print('======= Saving AE Config =======')
         with open(self.case_path+"ae_config.npy", "wb") as ae_config_file:
