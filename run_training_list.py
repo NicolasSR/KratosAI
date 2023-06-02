@@ -67,10 +67,10 @@ if __name__ == "__main__":
         "batch_size": 1,
         "epochs": 100,
         "normalization_strategy": 'channel_scale',  # ['feature_stand','channel_range', 'channel_scale', 'svd']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "orthogonal_loss_ratio": ('const', 0.0),
         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_thin/',
+        "dataset_path": 'datasets_two_forces/',
         # "dataset_path": 'datasets_rommanager/',
         "models_path": 'saved_models_newexample/',
         "finetune_from": None,

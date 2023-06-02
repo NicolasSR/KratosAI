@@ -1,6 +1,8 @@
 import numpy as np
 import scipy
 
+import tensorflow as tf
+
 import KratosMultiphysics as KMP
 import KratosMultiphysics.StructuralMechanicsApplication as SMA
 
@@ -150,12 +152,14 @@ class KratosSimulator():
         
         Ascipy = scipy.sparse.csr_matrix((A.value_data(), A.index2_data(), A.index1_data()), shape=(A.Size1(), A.Size2()))
         Ascipy=-Ascipy[:,self.non_cropped_dof_ids]/self.residual_scale_factor
-        cropped_A=Ascipy.todense()
+        
+        # cropped_A=Ascipy.todense()
 
         b=np.array(b)
         b=b/self.residual_scale_factor
 
-        return cropped_A, b
+        # return cropped_A, b
+        return Ascipy, b
     
     def get_r_array(self, samples, F_true):
         b_list=[]
