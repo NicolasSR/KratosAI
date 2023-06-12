@@ -3,8 +3,8 @@ import tensorflow as tf
 from tensorflow.keras.initializers import HeNormal
 
 from networks.base_ae_factory import Base_AE_Factory
-from networks.smain_ae_graph_scalar import SnaphotMainAEModel
-from networks.rmain_ae_graph_scalar import  ResidualMainAEModel
+from networks.smain_ae import SnaphotMainAEModel
+from networks.rmain_ae import  ResidualMainAEModel
 from networks.sonly_ae import  SnapshotOnlyAEModel
 
 from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_FeatureStand, Conv2D_AE_Normalizer_ChannelScale

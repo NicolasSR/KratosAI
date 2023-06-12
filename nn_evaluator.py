@@ -165,6 +165,8 @@ class NN_Evaluator():
     
     def execute_evaluation(self):
 
+        self.working_path=''
+
         data_path='saved_models_newexample/'
         with open(data_path+"ae_config.npy", "rb") as ae_config_file:
             self.ae_config = np.load(ae_config_file,allow_pickle='TRUE').item()
@@ -175,11 +177,11 @@ class NN_Evaluator():
         network_factory = self.network_factory_selector(self.ae_config["nn_type"])
 
         # Select the type of preprocessimg (normalisation). This also decides if cropping the snapshot is needed
-        self.data_normalizer=network_factory.normalizer_selector(self.ae_config)
+        self.data_normalizer=network_factory.normalizer_selector(self.working_path, self.ae_config)
 
         # Create a fake Analysis stage to calculate the predicted residuals
-        self.residual_scale_factor=np.load(self.ae_config['dataset_path']+'residual_scale_factor.npy')
-        self.kratos_simulation = KratosSimulator(self.ae_config, self.data_normalizer.needs_truncation, self.residual_scale_factor)
+        self.residual_scale_factor=np.load(self.working_path+self.ae_config['dataset_path']+'residual_scale_factor.npy')
+        self.kratos_simulation = KratosSimulator(self.working_path, self.ae_config, self.data_normalizer.needs_cropping, self.residual_scale_factor)
 
         S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_finetune(self.ae_config['dataset_path'], self.ae_config["use_force"], self.kratos_simulation.get_cropped_dof_ids())
         print('Shape S_flat_orig: ', S_flat_orig.shape)

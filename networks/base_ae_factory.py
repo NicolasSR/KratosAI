@@ -90,10 +90,10 @@ class Base_AE_Factory(abc.ABC):
             lam_schedule = lam_const_schedule
         else: print('Unvalid lambda scheduler')
 
-        early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_err_r', patience=5)
+        early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss_r', patience=5)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-        checkpoint_best_callback = tf.keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_err_r",mode="min")
+        checkpoint_best_callback = tf.keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_r",mode="min")
         checkpoint_last_callback = tf.keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/last/weights.h5",save_weights_only=True,save_freq="epoch")
         lr_w_lam_scheduler_callback = CustomLearningRateScheduler(lr_schedule, w_schedule, lam_schedule, verbose=0)
 

@@ -34,25 +34,44 @@ class NN_Trainer():
         os.makedirs(os.path.dirname(self.case_path+"best/"), exist_ok=True)
         os.makedirs(os.path.dirname(self.case_path+"last/"), exist_ok=True)
     
-    def prepare_input_augmented(self, dataset_path, use_force):
+    def prepare_input_augmented(self, dataset_path, use_force, cropped_ids):
         S_flat_orig=np.load(self.working_path+dataset_path+'FOM.npy')
         S_flat_orig_train=np.load(self.working_path+dataset_path+'S_augm_train.npy')
         S_flat_orig_test=np.load(self.working_path+dataset_path+'S_finetune_test.npy')
-        R_train=np.load(self.working_path+dataset_path+'R_augm_noF_train.npy')
-        R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
+        if use_force is None or use_force == True:
+            R_train=np.load(self.working_path+dataset_path+'R_augm_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_test.npy')
+        else:
+            print('Not using Force')
+            R_train=np.load(self.working_path+dataset_path+'R_augm_noF_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
         F_train=np.load(self.working_path+dataset_path+'F_augm_train.npy')[:,0,:]
         F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')[:,0,:]
 
+        S_flat_orig=np.delete(S_flat_orig, cropped_ids, axis=1)
+        S_flat_orig_train=np.delete(S_flat_orig_train, cropped_ids, axis=1)
+        S_flat_orig_test=np.delete(S_flat_orig_test, cropped_ids, axis=1)
+
         return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
-    
-    def prepare_input_finetune(self, dataset_path, use_force):
+
+    def prepare_input_finetune(self, dataset_path, use_force, cropped_ids):
         S_flat_orig=np.load(self.working_path+dataset_path+'FOM.npy')
         S_flat_orig_train=np.load(self.working_path+dataset_path+'S_finetune_train.npy')
         S_flat_orig_test=np.load(self.working_path+dataset_path+'S_finetune_test.npy')
-        R_train=np.load(self.working_path+dataset_path+'R_finetune_noF_train.npy')
-        R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
+
+        if use_force is None or use_force == True:
+            R_train=np.load(self.working_path+dataset_path+'R_finetune_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_test.npy')
+        else:
+            print('Not using Force')
+            R_train=np.load(self.working_path+dataset_path+'R_finetune_noF_train.npy')
+            R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
         F_train=np.load(self.working_path+dataset_path+'F_finetune_train.npy')[:,0,:]
         F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')[:,0,:]
+
+        S_flat_orig=np.delete(S_flat_orig, cropped_ids, axis=1)
+        S_flat_orig_train=np.delete(S_flat_orig_train, cropped_ids, axis=1)
+        S_flat_orig_test=np.delete(S_flat_orig_test, cropped_ids, axis=1)
 
         return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
     
@@ -72,21 +91,18 @@ class NN_Trainer():
         # Select the network to use
         network_factory = self.network_factory_selector(self.ae_config["nn_type"])
 
+        # Select the type of preprocessimg (normalisation). This also decides if cropping the snapshot is needed
+        data_normalizer=network_factory.normalizer_selector(self.working_path, self.ae_config)
+
         # Create a fake Analysis stage to calculate the predicted residuals
         residual_scale_factor=np.load(self.working_path+self.ae_config['dataset_path']+'residual_scale_factor.npy')
-        
-        kratos_simulation = KratosSimulator(self.working_path, self.ae_config, residual_scale_factor)
-        crop_mat_tf, crop_mat_scp = kratos_simulation.get_crop_matrix()
-
-        # Select the type of preprocessimg (normalisation)
-        data_normalizer=network_factory.normalizer_selector(self.working_path, self.ae_config)
+        kratos_simulation = KratosSimulator(self.working_path, self.ae_config, data_normalizer.needs_cropping, residual_scale_factor)
 
         # Get input data
         if self.ae_config["augmented"]:
-            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_augmented(self.ae_config['dataset_path'], self.ae_config["use_force"])
+            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_augmented(self.ae_config['dataset_path'], self.ae_config["use_force"], kratos_simulation.get_cropped_dof_ids())
         else:
-            print('Here')
-            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_finetune(self.ae_config['dataset_path'], self.ae_config["use_force"])
+            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_finetune(self.ae_config['dataset_path'], self.ae_config["use_force"], kratos_simulation.get_cropped_dof_ids())
         print('Shape S_flat_orig: ', S_flat_orig.shape)
         print('Shape S_flat_orig_train:', S_flat_orig_train.shape)
         print('Shape S_flat_orig_test:', S_flat_orig_test.shape)
@@ -95,13 +111,20 @@ class NN_Trainer():
         print('Shape F_train: ', F_train.shape)
         print('Shape F_test: ', F_test.shape)
 
-        data_normalizer.configure_normalization_data(S_flat_orig, crop_mat_tf, crop_mat_scp)
+        data_normalizer.configure_normalization_data(S_flat_orig)
+
         S = data_normalizer.process_raw_to_input_format(S_flat_orig)
         S_train = data_normalizer.process_raw_to_input_format(S_flat_orig_train)
         S_test = data_normalizer.process_raw_to_input_format(S_flat_orig_test)
         print('Shape S: ', S.shape)
         print('Shape S_train: ', S_train.shape)
         print('Shape S_test: ', S_test.shape)
+
+        # import matplotlib.pyplot as plt
+        # print(S.shape)
+        # plt.boxplot(S)
+        # plt.show()
+        # exit()
 
         # Load the autoencoder model
         print('======= Instantiating new autoencoder =======')
@@ -122,7 +145,7 @@ class NN_Trainer():
         print(self.ae_config)
 
         print('=========== Starting training routine ============')
-        history = network_factory.train_network(autoencoder, S_train, (S_flat_orig_train,R_train), S_test, (S_flat_orig_test,R_test), self.ae_config)
+        history = network_factory.train_network(autoencoder, S_train, (S_flat_orig_train,R_train,F_train), S_test, (R_test,F_test), self.ae_config)
 
         print('=========== Saving weights and history ============')
         autoencoder.save_weights(self.case_path+"model_weights.h5")

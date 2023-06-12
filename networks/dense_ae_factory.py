@@ -3,11 +3,11 @@ import tensorflow as tf
 from tensorflow.keras.initializers import HeNormal
 
 from networks.base_ae_factory import Base_AE_Factory
-from networks.smain_ae_graph_scalar import SnaphotMainAEModel
+from networks.smain_ae import SnaphotMainAEModel
 from networks.sonly_ae import SnapshotOnlyAEModel
-from networks.rmain_ae_graph_scalar import ResidualMainAEModel
+from networks.rmain_ae import ResidualMainAEModel
 
-from utils.normalizers import AE_Normalizer_SVD, AE_Normalizer_ChannelScale
+from utils.normalizers import AE_Normalizer_SVD, AE_Normalizer_SVD_Uniform, AE_Normalizer_ChannelScale
 
 class Dense_AE_Factory(Base_AE_Factory):
 
@@ -31,6 +31,8 @@ class Dense_AE_Factory(Base_AE_Factory):
     def normalizer_selector(self, working_path, ae_config):
         if ae_config["normalization_strategy"] == 'svd':
             return AE_Normalizer_SVD(working_path, ae_config["dataset_path"])
+        if ae_config["normalization_strategy"] == 'svd_unif':
+            return AE_Normalizer_SVD_Uniform(working_path, ae_config["dataset_path"])
         if ae_config["normalization_strategy"] == 'channel_scale':
             return AE_Normalizer_ChannelScale()
         else:

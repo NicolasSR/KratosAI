@@ -11,7 +11,6 @@ class AE_Normalizer_Base(abc.ABC):
 
     def __init__(self):
         super().__init__()
-        self.needs_cropping=True
 
     def process_raw_to_input_format(self, data):
         data_norm = self.normalize_data(data)
@@ -32,7 +31,7 @@ class AE_Normalizer_Base(abc.ABC):
         return tensor_denorm
     
     @abc.abstractmethod
-    def configure_normalization_data(self, S):
+    def configure_normalization_data(self, S, crop_mat_tf, crop_mat_scp):
         """ Define in subclass"""
     
     @abc.abstractmethod
@@ -57,12 +56,11 @@ class AE_Normalizer_SVD(AE_Normalizer_Base):
         super().__init__()
         self.phi=None
         self.phi_tf=None
-        self.needs_cropping=False
         self.feat_factors = None
         self.feat_factors_tf = None
         self.dataset_path=working_path+dataset_path
 
-    def configure_normalization_data(self, S):
+    def configure_normalization_data(self, S, crop_mat_tf, crop_mat_scp):
         try:
             self.phi=np.load(self.dataset_path+'svd_phi.npy')
         except IOError:
@@ -88,9 +86,8 @@ class AE_Normalizer_SVD(AE_Normalizer_Base):
         return output_data
     
     def normalize_data_tf(self,tensor):
-        output_tensor=tf.transpose(tf.linalg.matmul(tf.transpose(self.phi_tf),tf.transpose(tensor)))
-        output_tensor=tf.math.divide(output_tensor,self.feat_factors_tf)
-        # output_tensor=output_tensor/self.feat_factors
+        output_tensor=tf.transpose(tf.linalg.matmul(self.phi_tf,tensor,transpose_a=True,transpose_b=True))
+        output_tensor=output_tensor/self.feat_factors_tf
         return output_tensor
 
     def denormalize_data(self, data):
@@ -99,13 +96,113 @@ class AE_Normalizer_SVD(AE_Normalizer_Base):
         return output_data
     
     def denormalize_data_tf(self,tensor):
-        # output_tensor=tensor*self.feat_factors
-        output_tensor=tf.math.multiply(tensor,self.feat_factors_tf)
-        # output_tensor=tf.transpose(tf.linalg.matmul(self.phi_tf,tf.transpose(output_tensor)))
+        output_tensor=tensor*self.feat_factors_tf
         output_tensor=tf.transpose(tf.linalg.matmul(self.phi_tf,output_tensor,transpose_b=True))
         return output_tensor
+    
+    
+class AE_Normalizer_SVD_Uniform(AE_Normalizer_Base):
+    def __init__(self, working_path, dataset_path):
+        super().__init__()
+        self.phi=None
+        self.phi_tf=None
+        self.feat_factor = None
+        self.feat_factor_tf = None
+        self.dataset_path=working_path+dataset_path
 
+    def configure_normalization_data(self, S, crop_mat_tf, crop_mat_scp):
+        try:
+            self.phi=np.load(self.dataset_path+'svd_phi.npy')
+        except IOError:
+            print("No precomputed phi matrix found. Computing a new one")
+            self.phi,sigma,_,error = RandomizedSingularValueDecomposition().Calculate(S.T,1e-16)
+            np.save(self.dataset_path+'svd_phi.npy', self.phi)
+        
+        print('Phi matrix shape: ', self.phi.shape)
+        self.phi_tf=tf.constant(self.phi)
+        
+        S_svd=np.matmul(self.phi.T,S.T).T
+        self.feat_factor = np.max(abs(S_svd))
+        self.feat_factor_tf = tf.constant(self.feat_factor)
 
+    def normalize_data(self, data):
+        output_data=np.matmul(self.phi.T,data.T).T
+        output_data=output_data/self.feat_factor
+
+        return output_data
+    
+    def normalize_data_tf(self,tensor):
+        output_tensor=tf.transpose(tf.linalg.matmul(self.phi_tf,tensor,transpose_a=True,transpose_b=True))
+        output_tensor=output_tensor/self.feat_factor_tf
+        return output_tensor
+
+    def denormalize_data(self, data):
+        output_data=data*self.feat_factor
+        output_data=np.matmul(self.phi,output_data.T).T
+        return output_data
+    
+    def denormalize_data_tf(self,tensor):
+        output_tensor=tensor*self.feat_factor_tf
+        output_tensor=tf.transpose(tf.linalg.matmul(self.phi_tf,output_tensor,transpose_b=True))
+        return output_tensor
+    
+class AE_Normalizer_ChannelScale(AE_Normalizer_Base):
+    def __init__(self):
+        super().__init__()
+        self.factor_ch1=None
+        self.factor_ch2=None
+        self.div_coeff=None
+        self.div_coeff_tf=None
+        self.crop_mat_tf=None
+        self.crop_mat_scp=None
+
+    def configure_normalization_data(self, S, crop_mat_tf, crop_mat_scp):
+        ch1_max=np.max(S[:,0::2])
+        ch1_min=np.min(S[:,0::2])
+        if abs(ch1_max)>abs(ch1_min):
+            self.ch1_factor=ch1_max
+        else:
+            self.ch1_factor=ch1_min
+        ch2_max=np.max(S[:,1::2])
+        ch2_min=np.min(S[:,1::2])
+        if abs(ch2_max)>abs(ch2_min):
+            self.ch2_factor=ch2_max
+        else:
+            self.ch2_factor=ch2_min
+        print(self.ch1_factor)
+        print(self.ch2_factor)
+
+        aux=np.arange(S.shape[1])
+        self.div_coeff=np.expand_dims(np.where(aux%2==0, self.ch1_factor, self.ch2_factor),axis=0)
+        self.div_coeff_tf=tf.constant(np.expand_dims(np.where(aux%2==0, self.ch1_factor, self.ch2_factor),axis=0))
+
+        self.crop_mat_tf=crop_mat_tf
+        self.crop_mat_scp=crop_mat_scp
+    
+    def normalize_data(self, data):
+        output_data=data.copy()
+        output_data[:,0::2]=output_data[:,0::2]/self.ch1_factor
+        output_data[:,1::2]=output_data[:,1::2]/self.ch2_factor
+        output_data=np.transpose(self.crop_mat_scp.transpose().dot(output_data.T))
+        return output_data
+    
+    def normalize_data_tf(self,tensor):
+        output_tensor=tensor/self.div_coeff_tf
+        output_tensor=tf.transpose(tf.sparse.sparse_dense_matmul(self.crop_mat_tf, output_tensor, adjoint_a=True, adjoint_b=True))
+        return output_tensor
+
+    def denormalize_data(self, data):
+        output_data=data.copy()
+        output_data=np.transpose(self.crop_mat_scp.dot(output_data.T))
+        output_data[:,0::2]=output_data[:,0::2]*self.ch1_factor
+        output_data[:,1::2]=output_data[:,1::2]*self.ch2_factor
+        return output_data
+    
+    def denormalize_data_tf(self,tensor):
+        output_tensor=tf.transpose(tf.sparse.sparse_dense_matmul(self.crop_mat_tf, tensor, adjoint_a=False, adjoint_b=True))
+        output_tensor=output_tensor*self.div_coeff_tf
+        return output_tensor
+    
 class AE_Normalizer_ChannelRange(AE_Normalizer_Base):
     def __init__(self):
         super().__init__()
@@ -115,6 +212,9 @@ class AE_Normalizer_ChannelRange(AE_Normalizer_Base):
         self.ch2_min=None
         self.subt_term=None
         self.div_coeff=None
+
+        print('CROPPING NOT IMPLEMENTED PROPERLY FOR THIS NORMALISATION. ABORING')
+        exit()
 
     def configure_normalization_data(self, S):
         self.ch1_max=np.max(S[:,0::2])
@@ -146,54 +246,6 @@ class AE_Normalizer_ChannelRange(AE_Normalizer_Base):
         output_tensor=tensor*self.div_coeff
         output_tensor=output_tensor+self.subt_term
         return output_tensor
-    
-    
-class AE_Normalizer_ChannelScale(AE_Normalizer_Base):
-    def __init__(self):
-        super().__init__()
-        self.factor_ch1=None
-        self.factor_ch2=None
-        self.div_coeff=None
-
-    def configure_normalization_data(self, S):
-        ch1_max=np.max(S[:,0::2])
-        ch1_min=np.min(S[:,0::2])
-        if abs(ch1_max)>abs(ch1_min):
-            self.ch1_factor=ch1_max
-        else:
-            self.ch1_factor=ch1_min
-        ch2_max=np.max(S[:,1::2])
-        ch2_min=np.min(S[:,1::2])
-        if abs(ch2_max)>abs(ch2_min):
-            self.ch2_factor=ch2_max
-        else:
-            self.ch2_factor=ch2_min
-        print(self.ch1_factor)
-        print(self.ch2_factor)
-
-        aux=np.arange(S.shape[1])
-        self.div_coeff=np.expand_dims(np.where(aux%2==0, self.ch1_factor, self.ch2_factor),axis=0)
-
-
-    def normalize_data(self, data):
-        output_data=data.copy()
-        output_data[:,0::2]=output_data[:,0::2]/self.ch1_factor
-        output_data[:,1::2]=output_data[:,1::2]/self.ch2_factor
-        return output_data
-    
-    def normalize_data_tf(self,tensor):
-        output_tensor=tensor/self.div_coeff
-        return output_tensor
-
-    def denormalize_data(self, data):
-        output_data=data.copy()
-        output_data[:,0::2]=output_data[:,0::2]*self.ch1_factor
-        output_data[:,1::2]=output_data[:,1::2]*self.ch2_factor
-        return output_data
-    
-    def denormalize_data_tf(self,tensor):
-        output_tensor=tensor*self.div_coeff
-        return output_tensor
   
   
 class AE_Normalizer_FeatureStand(AE_Normalizer_Base):
@@ -201,6 +253,8 @@ class AE_Normalizer_FeatureStand(AE_Normalizer_Base):
         super().__init__()
         self.feat_means = None   
         self.feat_stds = None
+        print('CROPPING NOT IMPLEMENTED PROPERLY FOR THIS NORMALISATION. ABORING')
+        exit()
 
     def configure_normalization_data(self, S):
         feat_means = []
@@ -264,7 +318,8 @@ class Conv2D_AE_Normalizer_Base(abc.ABC):
 
     def __init__(self):
         super().__init__()
-        self.needs_cropping=True
+        print('CROPPING NOT IMPLEMENTED PROPERLY FOR THIS NORMALISATION. ABORING')
+        exit()
 
     def process_raw_to_input_format(self, data):
         data_norm = self.normalize_data(data)

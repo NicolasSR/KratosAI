@@ -185,7 +185,7 @@ def generate_augm_finetune_datasets(dataset_path, kratos_simulation, augm_order)
         R_augm.append(R_train[i])
         for n in range(augm_order):
             s_noisy = apply_random_noise(S_train[i], cropped_dof_ids)
-            _, r_noisy = kratos_simulation.get_r(np.expand_dims(s_noisy, axis=0), None)
+            r_noisy = kratos_simulation.get_r_(np.expand_dims(s_noisy, axis=0))[0]
             S_augm.append(s_noisy)
             F_augm.append(F_train[i])
             R_augm.append(r_noisy)
@@ -230,10 +230,13 @@ def generate_residuals_noforce(dataset_path, kratos_simulation):
     with open(dataset_path+"S_finetune_test.npy", "rb") as f:
         S_test=np.load(f)
 
+        print(S_test.shape)
+    
+
     R_noF_test=[]
 
     for i in range(S_test.shape[0]):
-        _, r_true = kratos_simulation.get_r(np.expand_dims(S_test[i], axis=0), None)
+        r_true = kratos_simulation.get_r_(np.expand_dims(S_test[i], axis=0))[0]
         # r_true = get_r(fake_simulation, S_test[i], None)
         R_noF_test.append(r_true)
 
@@ -246,15 +249,16 @@ def generate_residuals_noforce(dataset_path, kratos_simulation):
         np.save(f, R_noF_test)
 
 def join_datasets(dataset_path):
-    S1=np.load(dataset_path+"FOM_POINTLOADS_1.npy")
-    S2=np.load(dataset_path+"FOM_POINTLOADS_2.npy")
-    S3=np.load(dataset_path+"FOM_POINTLOADS_3.npy")
-    S4=np.load(dataset_path+"FOM_POINTLOADS_4.npy")
-    S5=np.load(dataset_path+"FOM_POINTLOADS_5.npy")
-    S6=np.load(dataset_path+"FOM_POINTLOADS_6.npy")
+    # S1=np.load(dataset_path+"FOM_POINTLOADS_1.npy")[:300]
+    # S2=np.load(dataset_path+"FOM_POINTLOADS_2.npy")[:300]
+    # S3=np.load(dataset_path+"FOM_POINTLOADS_3.npy")[:300]
+    # S4=np.load(dataset_path+"FOM_POINTLOADS_4.npy")[:100]
 
-    S=np.concatenate([S1,S2,S3,S4,S5], axis=0)
-    np.save(dataset_path+"F_finetune_train.npy", S)
+    S1=np.load(dataset_path+"S_finetune_train.npy")
+    S2=np.load(dataset_path+"S_finetune_test.npy")
+
+    S=np.concatenate([S1,S2], axis=0)
+    np.save(dataset_path+"FOM.npy", S)
     print(S.shape)
 
 if __name__ == "__main__":
@@ -262,7 +266,7 @@ if __name__ == "__main__":
     ae_config = {
         "nn_type": 'standard_config', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
         "name": 'standard_config',
-        "dataset_path": 'datasets_two_forces/',
+        "dataset_path": 'datasets_two_forces_dense/',
         "project_parameters_file":'ProjectParameters_fom.json',
         "use_force":False
      }
@@ -273,10 +277,10 @@ if __name__ == "__main__":
     working_path=argv[1]+"/"
     needs_truncation=False
     residual_scale_factor=1.0
-    kratos_simulation = KratosSimulator(working_path, ae_config, needs_truncation,residual_scale_factor)
+    kratos_simulation = KratosSimulator(working_path, ae_config,residual_scale_factor)
 
     # generate_training_datasets(dataset_path)
     # generate_finetune_datasets(dataset_path)
-    generate_augm_finetune_datasets(dataset_path, kratos_simulation, 2)
-    # generate_residuals_noforce(dataset_path, kratos_simulation, )
-    # join_datasets(dataset_path)
+    # generate_augm_finetune_datasets(dataset_path, kratos_simulation, 3)
+    # generate_residuals_noforce(dataset_path, kratos_simulation)
+    join_datasets(dataset_path)
