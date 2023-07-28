@@ -48,6 +48,7 @@ class CustomLearningRateScheduler(keras.callbacks.Callback):
             )
         backend.set_value(self.model.optimizer.lr, backend.get_value(lr))
         self.model.w = w
+        # self.model.w_tf = tf.constant(w, dtype=tf.float64)
         self.model.lam = lam
         if self.verbose > 0:
             io_utils.print_msg(

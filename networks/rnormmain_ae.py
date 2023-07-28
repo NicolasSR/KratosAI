@@ -8,12 +8,11 @@ import tensorflow as tf
 
 import time
 
-class SnaphotMainAEModel(keras.Model):
+class ResidualNormMainAEModel(keras.Model):
 
     def __init__(self,*args,**kwargs):
-        super(SnaphotMainAEModel,self).__init__(*args,**kwargs)
+        super(ResidualNormMainAEModel,self).__init__(*args,**kwargs)
         self.w=0
-        self.w_tf=0
         self.lam=0
 
         self.loss_x_tracker = keras.metrics.Mean(name="loss_x")
@@ -47,7 +46,7 @@ class SnaphotMainAEModel(keras.Model):
     @tf.function
     def get_gradients(self, trainable_vars, x_true, v_loss_x, v_loss_r, w):
 
-        v_loss = -2*(v_loss_x+w*v_loss_r)
+        v_loss = -2*(v_loss_r+w*v_loss_x)
 
         with tf.GradientTape(persistent=False) as tape_d:
             tape_d.watch(trainable_vars)
@@ -69,12 +68,10 @@ class SnaphotMainAEModel(keras.Model):
             self.sample_gradient_sum_functions_list.append(gradient_sum_sample)
 
     def train_step(self,data):
-        x_true_batch, (x_orig_batch,r_orig_batch) = data
+        x_true_batch, (x_orig_batch,f_batch) = data
         trainable_vars = self.trainable_variables
 
         batch_len=x_true_batch.shape[0]
-
-        tf.print(trainable_vars)
 
         total_gradients=[]
         for i in range(len(trainable_vars)):
@@ -87,11 +84,11 @@ class SnaphotMainAEModel(keras.Model):
             
             x_true=tf.expand_dims(x_true_batch[sample_id],axis=0)
             x_orig=tf.expand_dims(x_orig_batch[sample_id],axis=0)
-            b_true=tf.expand_dims(r_orig_batch[sample_id]/self.residual_scale_factor,axis=0)
+            f_vec=tf.expand_dims(f_batch[sample_id],axis=0)
 
             v_loss_x, x_pred_denorm = self.get_v_loss_x(x_true, x_orig)
 
-            err_r, v_loss_r = self.kratos_simulation.get_v_loss_r(x_pred_denorm,b_true)
+            err_r, v_loss_r = self.kratos_simulation.get_v_loss_rnorm(x_pred_denorm,f_vec)
             
             loss_x = tf.linalg.matmul(v_loss_x,v_loss_x,transpose_b=True)
             loss_r = tf.linalg.matmul(err_r,err_r,transpose_b=True)
@@ -99,7 +96,7 @@ class SnaphotMainAEModel(keras.Model):
             total_loss_x+=loss_x/batch_len
             total_loss_r+=loss_r/batch_len
 
-            grad_loss = self.get_gradients(trainable_vars, x_true, v_loss_x, v_loss_r, self.w_tf)
+            grad_loss = self.get_gradients(trainable_vars, x_true, v_loss_x, v_loss_r, self.w)
 
             for i in range(len(total_gradients)):
                 total_gradients[i]=self.sample_gradient_sum_functions_list[i](total_gradients[i], grad_loss[i], batch_len)
@@ -113,7 +110,7 @@ class SnaphotMainAEModel(keras.Model):
         return {"loss_x": self.loss_x_tracker.result(), "loss_r": self.loss_r_tracker.result()}
 
     def test_step(self, data):
-        x_true_batch, (x_orig_batch, r_orig_batch) = data
+        x_true_batch, (x_orig_batch, f_batch) = data
 
         batch_len=x_true_batch.shape[0]
 
@@ -124,15 +121,15 @@ class SnaphotMainAEModel(keras.Model):
 
             x_true=tf.expand_dims(x_true_batch[sample_id],axis=0)
             x_orig=tf.expand_dims(x_orig_batch[sample_id],axis=0)
-            b_true=tf.expand_dims(r_orig_batch[sample_id]/self.residual_scale_factor,axis=0)
+            f_vec=tf.expand_dims(f_batch[sample_id],axis=0)
 
             x_pred = self(x_true, training=False)
             x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
 
-            b_pred = self.kratos_simulation.get_r(x_pred_denorm)
+            b_pred = self.kratos_simulation.get_r_forces(x_pred_denorm, f_vec)
 
             err_x = x_orig - x_pred_denorm
-            err_r = b_true - b_pred
+            err_r = b_pred
             loss_x = tf.linalg.matmul(err_x,err_x,transpose_b=True)
             loss_r = tf.linalg.matmul(err_r,err_r,transpose_b=True)
 
@@ -144,11 +141,11 @@ class SnaphotMainAEModel(keras.Model):
         self.loss_r_tracker.update_state(total_loss_r)
         return {"loss_x": self.loss_x_tracker.result(), "loss_r": self.loss_r_tracker.result()}
     
-    # def predict_snapshot(self,snapshot):
-    #     norm_2d_snapshot=self.data_normalizer.process_raw_to_input_format(snapshot)
-    #     norm_2d_pred=self.predict(norm_2d_snapshot)
-    #     pred=self.data_normalizer.process_input_to_raw_format(norm_2d_pred)
-    #     return pred
+    def predict_snapshot(self,snapshot):
+        norm_2d_snapshot=self.data_normalizer.process_raw_to_input_format(snapshot)
+        norm_2d_pred=self.predict(norm_2d_snapshot)
+        pred=self.data_normalizer.process_input_to_raw_format(norm_2d_pred)
+        return pred
 
     @property
     def metrics(self):

@@ -227,9 +227,8 @@ def generate_residuals_noforce(dataset_path, kratos_simulation):
     #     np.save(f, R_noF_train)
 
     #Test dataset
-    with open(dataset_path+"S_finetune_test.npy", "rb") as f:
+    with open(dataset_path+"S_test_linear.npy", "rb") as f:
         S_test=np.load(f)
-
         print(S_test.shape)
     
 
@@ -245,20 +244,32 @@ def generate_residuals_noforce(dataset_path, kratos_simulation):
     
     R_noF_test=np.array(R_noF_test)
 
-    with open(dataset_path+"R_finetune_noF_test.npy", "wb") as f:
+    with open(dataset_path+"R_noF_test_linear.npy", "wb") as f:
         np.save(f, R_noF_test)
 
 def join_datasets(dataset_path):
-    # S1=np.load(dataset_path+"FOM_POINTLOADS_1.npy")[:300]
-    # S2=np.load(dataset_path+"FOM_POINTLOADS_2.npy")[:300]
-    # S3=np.load(dataset_path+"FOM_POINTLOADS_3.npy")[:300]
-    # S4=np.load(dataset_path+"FOM_POINTLOADS_4.npy")[:100]
 
-    S1=np.load(dataset_path+"S_finetune_train.npy")
-    S2=np.load(dataset_path+"S_finetune_test.npy")
+    # S1=np.load(dataset_path+"fom_snapshots_1.npy").T
+    # S2=np.load(dataset_path+"fom_snapshots_2.npy").T
+    # S3=np.load(dataset_path+"fom_snapshots_3.npy").T
+    # S4=np.load(dataset_path+"fom_snapshots_4.npy").T
+    # S5=np.load(dataset_path+"fom_snapshots_5.npy").T
+    # S6=np.load(dataset_path+"fom_snapshots_6.npy").T
+    # S7=np.load(dataset_path+"fom_snapshots_7.npy").T
+    # S8=np.load(dataset_path+"fom_snapshots_8.npy").T
+    # S9=np.load(dataset_path+"fom_snapshots_9.npy").T
+    # S10=np.load(dataset_path+"fom_snapshots_10.npy").T
 
-    S=np.concatenate([S1,S2], axis=0)
-    np.save(dataset_path+"FOM.npy", S)
+    # Stest1=np.load(dataset_path+"fom_snapshots_test_1.npy").T
+    # Stest2=np.load(dataset_path+"fom_snapshots_test_2.npy").T
+
+    Stest1=np.load(dataset_path+"fom_snapshots_linear.npy").T
+
+
+    # S=np.concatenate([S1,S2,S3,S4,S5,S6,S7,S8,S9,S10], axis=0)
+    S=np.concatenate([Stest1], axis=0)
+    # S=np.concatenate([S1,S2,S3,S4,S5,S6,S7,S8,S9,S10,Stest1,Stest2], axis=0)
+    np.save(dataset_path+"S_test_linear.npy", S)
     print(S.shape)
 
 if __name__ == "__main__":
@@ -266,7 +277,7 @@ if __name__ == "__main__":
     ae_config = {
         "nn_type": 'standard_config', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
         "name": 'standard_config',
-        "dataset_path": 'datasets_two_forces_dense/',
+        "dataset_path": 'datasets_two_forces_dense_lowforce/',
         "project_parameters_file":'ProjectParameters_fom.json',
         "use_force":False
      }
@@ -282,5 +293,6 @@ if __name__ == "__main__":
     # generate_training_datasets(dataset_path)
     # generate_finetune_datasets(dataset_path)
     # generate_augm_finetune_datasets(dataset_path, kratos_simulation, 3)
-    # generate_residuals_noforce(dataset_path, kratos_simulation)
-    join_datasets(dataset_path)
+    generate_residuals_noforce(dataset_path, kratos_simulation)
+    # generate_residuals_noforce('', kratos_simulation)
+    # join_datasets(dataset_path)

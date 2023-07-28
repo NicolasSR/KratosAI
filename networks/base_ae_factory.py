@@ -19,11 +19,11 @@ class Base_AE_Factory(abc.ABC):
         return (y_true - y_pred) ** 2
     
     @abc.abstractmethod
-    def keras_model_selector(self,ae_config):
+    def keras_model_selector(self,ae_config, keras_default):
         'Defined in the subclasses'
         
     @abc.abstractmethod
-    def define_network(self, input_data, ae_config):
+    def define_network(self, input_data, ae_config, keras_default=False):
         'Defined in the subclasses'
 
     def predict_snapshot(self, network, snapshot):
@@ -93,7 +93,8 @@ class Base_AE_Factory(abc.ABC):
         early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss_r', patience=5)
         log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-        checkpoint_best_callback = tf.keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_r",mode="min")
+        checkpoint_best_x_callback = tf.keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_x_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_x",mode="min")
+        checkpoint_best_r_callback = tf.keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/best/weights_r_{epoch:03d}.h5",save_weights_only=True,save_best_only=True,monitor="val_loss_r",mode="min")
         checkpoint_last_callback = tf.keras.callbacks.ModelCheckpoint(ae_config["models_path"]+ae_config["name"]+"/last/weights.h5",save_weights_only=True,save_freq="epoch")
         lr_w_lam_scheduler_callback = CustomLearningRateScheduler(lr_schedule, w_schedule, lam_schedule, verbose=0)
 
@@ -107,7 +108,8 @@ class Base_AE_Factory(abc.ABC):
                 lr_w_lam_scheduler_callback,
                 # early_stop_callback,
                 # tensorboard_callback,
-                checkpoint_best_callback,
+                checkpoint_best_x_callback,
+                checkpoint_best_r_callback,
                 checkpoint_last_callback,
             ]
         )

@@ -1,6 +1,8 @@
 *.npy
 *.post.lst
 *.post.bin
+*.post.res
+*.post.msh
 **/__pycache__/
 /saved_models/
 /saved_models_new/
@@ -17,3 +19,10 @@
 /datasets_two_forces_thin/
 /saved_models_conv2d_augm/
 /datasets_two_forces_dense/
+/Kratos_results/
+/Scipy_results/
+/datasets_two_forces_dense_extended/
+/datasets_two_forces_dense_lowforce/
+/identity_decoder_model/
+/identity_encoder_model/
+

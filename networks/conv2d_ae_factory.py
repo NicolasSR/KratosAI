@@ -7,41 +7,40 @@ from networks.smain_ae import SnaphotMainAEModel
 from networks.rmain_ae import  ResidualMainAEModel
 from networks.sonly_ae import  SnapshotOnlyAEModel
 
-from utils.normalizers import Conv2D_AE_Normalizer_ChannelRange, Conv2D_AE_Normalizer_FeatureStand, Conv2D_AE_Normalizer_ChannelScale
+from utils.normalizers import Conv2D_AE_Normalizer_ChannelScale
 
 class Conv2D_AE_Factory(Base_AE_Factory):
 
     def __init__(self):
         super().__init__()
 
-    def keras_model_selector(self,ae_config):
-        if '_smain' in ae_config["nn_type"]:
-            print('Using SnaphotMainAEModel model with Conv2D architecture')
-            return SnaphotMainAEModel
-        elif '_rmain' in ae_config["nn_type"]:
-            print('Using Conv2DResidualMainAEModel model')
-            return ResidualMainAEModel
-        elif '_sonly' in ae_config["nn_type"]:
-            print('Using Conv2DSnaphotOnlyAEModel model')
-            return SnapshotOnlyAEModel
+    def keras_model_selector(self,ae_config, keras_default):
+        if not keras_default:
+            if '_smain' in ae_config["nn_type"]:
+                print('Using SnaphotMainAEModel model with Conv2D architecture')
+                return SnaphotMainAEModel
+            elif '_rmain' in ae_config["nn_type"]:
+                print('Using Conv2DResidualMainAEModel with Conv2D architecture')
+                return ResidualMainAEModel
+            elif '_sonly' in ae_config["nn_type"]:
+                print('Using Conv2DSnaphotOnlyAEModel with Conv2D architecture')
+                return SnapshotOnlyAEModel
+            else:
+                print('No valid ae model was selected')
+                return None
         else:
-            print('No valid ae model was selected')
-            return None
+            return tf.keras.Model
         
     def normalizer_selector(self, working_path, ae_config):
-        if ae_config["normalization_strategy"] == 'channel_range':
-            return Conv2D_AE_Normalizer_ChannelRange()
-        elif ae_config["normalization_strategy"] == 'channel_scale':
+        if ae_config["normalization_strategy"] == 'channel_scale':
             return Conv2D_AE_Normalizer_ChannelScale()
-        elif ae_config["normalization_strategy"] == 'feature_stand':
-            return Conv2D_AE_Normalizer_FeatureStand()
         else:
             print('Normalization strategy is not valid')
             return None
         
-    def define_network(self, input_data, ae_config):
+    def define_network(self, input_data, ae_config, keras_default=False):
 
-        keras_submodel=self.keras_model_selector(ae_config)
+        keras_submodel=self.keras_model_selector(ae_config, keras_default)
 
         if "use_bias" in ae_config:
             use_bias = ae_config["use_bias"]

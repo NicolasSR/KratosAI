@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
 
 
-    with open("saved_models_conv2d/ae_config.json", "r") as config_file:
+    with open("ae_config.json", "r") as config_file:
         config=json.load(config_file)
 
-    np.save('saved_models_conv2d/ae_config.npy', config)
+    np.save('ae_config.npy', config)

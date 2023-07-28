@@ -6,13 +6,10 @@ from networks.base_ae_factory import Base_AE_Factory
 from networks.smain_ae import SnaphotMainAEModel
 from networks.sonly_ae import SnapshotOnlyAEModel
 from networks.rmain_ae import ResidualMainAEModel
-from networks.rnormmain_ae import ResidualNormMainAEModel
-from networks.svdmain_ae import SVDMainAEModel
-from networks.svdmainmae_ae import SVDMainMAEAEModel
 
 from utils.normalizers import AE_Normalizer_SVD_Whitening, AE_Normalizer_SVD_Whitening_NoStand, AE_Normalizer_SVD_Prenorm, AE_Normalizer_SVD_PrenormChan, AE_Normalizer_SVD, AE_Normalizer_SVD_Uniform, AE_Normalizer_ChannelScale
 
-class Dense_AE_Factory(Base_AE_Factory):
+class Linear_AE_Factory(Base_AE_Factory):
 
     def __init__(self):
         super().__init__()
@@ -28,15 +25,6 @@ class Dense_AE_Factory(Base_AE_Factory):
             elif '_rmain' in ae_config["nn_type"]:
                 print('Using ResidualMainAEModel model with Dense architecture')
                 return ResidualMainAEModel
-            elif '_rnormmain' in ae_config["nn_type"]:
-                print('Using ResidualNNormMainAEModel model with Dense architecture')
-                return ResidualNormMainAEModel
-            elif '_svdmain' in ae_config["nn_type"]:
-                print('Using SVDMainAEModel model with Dense architecture')
-                return SVDMainAEModel
-            elif '_svdmainmae' in ae_config["nn_type"]:
-                print('Using SVDMainAEModel model with Dense architecture')
-                return SVDMainMAEAEModel
             else:
                 print('No valid ae model was selected')
                 return None
@@ -82,13 +70,13 @@ class Dense_AE_Factory(Base_AE_Factory):
 
         encoder_out = model_input
         for layer_size in ae_config["hidden_layers"]:
-            encoder_out = tf.keras.layers.Dense(layer_size, activation='elu', kernel_initializer=HeNormal(), use_bias=use_bias)(encoder_out)
+            encoder_out = tf.keras.layers.Dense(layer_size, activation='linear', kernel_initializer=HeNormal(), use_bias=use_bias)(encoder_out)
         encoder_out = tf.keras.layers.Dense(encoded_size, activation=tf.keras.activations.linear, kernel_initializer=HeNormal(), use_bias=use_bias)(encoder_out)
         
         decoder_out = decod_input
         for i in range(num_layers):
             layer_size=ae_config["hidden_layers"][num_layers-1-i]
-            decoder_out = tf.keras.layers.Dense(layer_size, activation='elu', kernel_initializer=HeNormal(), use_bias=use_bias)(decoder_out)
+            decoder_out = tf.keras.layers.Dense(layer_size, activation='linear', kernel_initializer=HeNormal(), use_bias=use_bias)(decoder_out)
         decoder_out = tf.keras.layers.Dense(decoded_size, activation=tf.keras.activations.linear, kernel_initializer=HeNormal(), use_bias=use_bias)(decoder_out)
         
         self.encoder_model = tf.keras.Model(model_input, encoder_out, name='Encoder')
@@ -96,6 +84,7 @@ class Dense_AE_Factory(Base_AE_Factory):
         self.autoenco = keras_submodel(model_input, self.decoder_model(self.encoder_model(model_input)), name='Autoencoder')
         
         self.autoenco.compile(optimizer=tf.keras.optimizers.experimental.AdamW(), run_eagerly=self.autoenco.run_eagerly, metrics=[self.my_metrics_function])
+
         self.encoder_model.summary()
         self.decoder_model.summary()
         self.autoenco.summary()

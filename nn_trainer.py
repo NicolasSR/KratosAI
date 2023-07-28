@@ -18,6 +18,8 @@ from utils.kratos_simulation import KratosSimulator
 
 from networks.conv2d_ae_factory import  Conv2D_AE_Factory
 from networks.dense_ae_factory import Dense_AE_Factory
+from networks.linear_ae_factory import Linear_AE_Factory
+from networks.dense_decoder_corrector_factory import Dense_Decoder_Corrector_Factory
 
 import matplotlib.pyplot as plt
 
@@ -34,25 +36,36 @@ class NN_Trainer():
         os.makedirs(os.path.dirname(self.case_path+"best/"), exist_ok=True)
         os.makedirs(os.path.dirname(self.case_path+"last/"), exist_ok=True)
     
-    def prepare_input_augmented(self, dataset_path, use_force):
+    def prepare_input_augmented(self, dataset_path):
         S_flat_orig=np.load(self.working_path+dataset_path+'FOM.npy')
         S_flat_orig_train=np.load(self.working_path+dataset_path+'S_augm_train.npy')
         S_flat_orig_test=np.load(self.working_path+dataset_path+'S_finetune_test.npy')
         R_train=np.load(self.working_path+dataset_path+'R_augm_noF_train.npy')
         R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
-        F_train=np.load(self.working_path+dataset_path+'F_augm_train.npy')[:,0,:]
-        F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')[:,0,:]
+        F_train=np.load(self.working_path+dataset_path+'F_finetune_train.npy')
+        F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')
 
         return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
     
-    def prepare_input_finetune(self, dataset_path, use_force):
+    def prepare_input_finetune(self, dataset_path):
         S_flat_orig=np.load(self.working_path+dataset_path+'FOM.npy')
         S_flat_orig_train=np.load(self.working_path+dataset_path+'S_finetune_train.npy')
         S_flat_orig_test=np.load(self.working_path+dataset_path+'S_finetune_test.npy')
         R_train=np.load(self.working_path+dataset_path+'R_finetune_noF_train.npy')
         R_test=np.load(self.working_path+dataset_path+'R_finetune_noF_test.npy')
-        F_train=np.load(self.working_path+dataset_path+'F_finetune_train.npy')[:,0,:]
-        F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')[:,0,:]
+        F_train=np.load(self.working_path+dataset_path+'F_finetune_train.npy')
+        F_test=np.load(self.working_path+dataset_path+'F_finetune_test.npy')
+
+        return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
+
+    def prepare_input_pretrain(self, dataset_path):
+        S_flat_orig=np.load(self.working_path+dataset_path+'FOM.npy')
+        S_flat_orig_train=np.load(self.working_path+dataset_path+'S_train.npy')
+        S_flat_orig_test=np.load(self.working_path+dataset_path+'S_test.npy')
+        R_train=np.load(self.working_path+dataset_path+'R_noF_train.npy')
+        R_test=np.load(self.working_path+dataset_path+'R_noF_test.npy')
+        F_train=np.load(self.working_path+dataset_path+'F_train.npy')
+        F_test=np.load(self.working_path+dataset_path+'F_test.npy')
 
         return S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test
     
@@ -61,6 +74,10 @@ class NN_Trainer():
             return Conv2D_AE_Factory()
         elif 'dense' in nn_type:
             return Dense_AE_Factory()
+        elif 'linear' in nn_type:
+            return Linear_AE_Factory()
+        elif 'dec_correct' in nn_type:
+            return Dense_Decoder_Corrector_Factory()
         else:
             print('No valid network type was selected')
             return None
@@ -83,17 +100,18 @@ class NN_Trainer():
 
         # Get input data
         if self.ae_config["augmented"]:
-            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_augmented(self.ae_config['dataset_path'], self.ae_config["use_force"])
+            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_augmented(self.ae_config['dataset_path'])
+        elif self.ae_config["pretrain"]:
+            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_pretrain(self.ae_config['dataset_path'])
         else:
-            print('Here')
-            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_finetune(self.ae_config['dataset_path'], self.ae_config["use_force"])
+            S_flat_orig, S_flat_orig_train, S_flat_orig_test, R_train, R_test, F_train, F_test = self.prepare_input_finetune(self.ae_config['dataset_path'])
         print('Shape S_flat_orig: ', S_flat_orig.shape)
         print('Shape S_flat_orig_train:', S_flat_orig_train.shape)
         print('Shape S_flat_orig_test:', S_flat_orig_test.shape)
         print('Shape R_train: ', R_train.shape)
         print('Shape R_est: ', R_test.shape)
         print('Shape F_train: ', F_train.shape)
-        print('Shape F_test: ', F_test.shape)
+        print('Shape F_est: ', F_test.shape)
 
         data_normalizer.configure_normalization_data(S_flat_orig, crop_mat_tf, crop_mat_scp)
         S = data_normalizer.process_raw_to_input_format(S_flat_orig)
@@ -102,6 +120,15 @@ class NN_Trainer():
         print('Shape S: ', S.shape)
         print('Shape S_train: ', S_train.shape)
         print('Shape S_test: ', S_test.shape)
+
+        # np.save(self.ae_config['dataset_path']+'S_input_train.npy', S_train)
+        # np.save(self.ae_config['dataset_path']+'S_input_test.npy', S_test)
+        # exit()
+
+        # A, b = kratos_simulation.define_connectivity_and_graph()
+        # print(A)
+        # print(b)
+        # exit()
 
         # Load the autoencoder model
         print('======= Instantiating new autoencoder =======')
@@ -122,7 +149,14 @@ class NN_Trainer():
         print(self.ae_config)
 
         print('=========== Starting training routine ============')
-        history = network_factory.train_network(autoencoder, S_train, (S_flat_orig_train,R_train), S_test, (S_flat_orig_test,R_test), self.ae_config)
+        if isinstance(network_factory, Conv2D_AE_Factory) or isinstance(network_factory, Dense_AE_Factory) or isinstance(network_factory, Linear_AE_Factory):
+            history = network_factory.train_network(autoencoder, S_train, (S_flat_orig_train,R_train), S_test, (S_flat_orig_test,R_test), self.ae_config)
+            # history = network_factory.train_network(autoencoder, S_train, (S_flat_orig_train,F_train), S_test, (S_flat_orig_test,F_test), self.ae_config)
+        elif isinstance(network_factory, Dense_Decoder_Corrector_Factory):
+            Q_train=data_normalizer.get_q(S_flat_orig_train)
+            Q_test=data_normalizer.get_q(S_flat_orig_test)
+            history = network_factory.train_network(autoencoder, Q_train, (S_train), Q_test, (S_test), self.ae_config)
+        
 
         print('=========== Saving weights and history ============')
         autoencoder.save_weights(self.case_path+"model_weights.h5")

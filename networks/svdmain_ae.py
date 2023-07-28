@@ -7,10 +7,10 @@ import keras
 import tensorflow as tf
 
 
-class SnapshotOnlyAEModel(keras.Model):
+class SVDMainAEModel(keras.Model):
 
     def __init__(self,*args,**kwargs):
-        super(SnapshotOnlyAEModel,self).__init__(*args,**kwargs)
+        super(SVDMainAEModel,self).__init__(*args,**kwargs)
         self.loss_x_tracker = keras.metrics.Mean(name="loss_x")
         self.kratos_simulation = None
         self.w=0
@@ -41,13 +41,13 @@ class SnapshotOnlyAEModel(keras.Model):
         for sample_id in range(batch_len):
 
             x_true=tf.expand_dims(x_true_batch[sample_id],axis=0)
-            x_orig=tf.expand_dims(x_orig_batch[sample_id],axis=0)
+            # x_orig=tf.expand_dims(x_orig_batch[sample_id],axis=0)
 
             with tf.GradientTape(persistent=False) as tape_d:
                 tape_d.watch(trainable_vars)
                 x_pred = self(x_true, training=True)
-                x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
-                loss_x = self.diff_norm_loss(x_orig, x_pred_denorm)
+                # x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
+                loss_x = self.diff_norm_loss(x_true, x_pred)
 
             grad_loss = tape_d.gradient(loss_x, trainable_vars)
 
@@ -76,11 +76,11 @@ class SnapshotOnlyAEModel(keras.Model):
 
         for sample_id in range(batch_len):
             x_true=tf.expand_dims(x_true_batch[sample_id],axis=0)
-            x_orig=tf.expand_dims(x_orig_batch[sample_id],axis=0)
+            # x_orig=tf.expand_dims(x_orig_batch[sample_id],axis=0)
 
             x_pred = self(x_true, training=False)
-            x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
-            loss_x = self.diff_norm_loss(x_orig, x_pred_denorm)
+            # x_pred_denorm = self.data_normalizer.process_input_to_raw_format_tf(x_pred)
+            loss_x = self.diff_norm_loss(x_true, x_pred)
             total_loss_x+=loss_x/batch_len
 
         # Compute our own metrics

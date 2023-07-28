@@ -8,22 +8,22 @@ with open(filename, "r") as f:
 
 ###########   FOR KERAS TRAINED MODELS  ###############
 # Use regular expressions to extract the values for each epoch
-pattern = r"Epoch \d+/\d+\n.*loss_x: ([\d\.e+-]+).*err_r: ([\d\.e+-]+).*val_loss_x: ([\d\.e+-]+).*val_err_r: ([\d\.e+-]+)"
+pattern = r"Epoch \d+/\d+\n.*loss_x: ([\d\.e+-]+).*loss_r: ([\d\.e+-]+).*val_loss_x: ([\d\.e+-]+).*val_loss_r: ([\d\.e+-]+)"
 matches = re.findall(pattern, text)
 
 history={
     "loss_x": [],
-    "err_r": [],
+    "loss_r": [],
     "val_loss_x": [],
-    "val_err_r": []
+    "val_loss_r": []
 }
 
 # Convert the results to a dictionary
 for i, match in enumerate(matches):
     history["loss_x"].append(float(match[0]))
-    history["err_r"].append(float(match[1]))
+    history["loss_r"].append(float(match[1]))
     history["val_loss_x"].append(float(match[2]))
-    history["val_err_r"].append(float(match[3]))
+    history["val_loss_r"].append(float(match[3]))
 
 print(history)
 

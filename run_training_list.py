@@ -14,6 +14,7 @@ from pycompss.api.constraint import constraint """
 def train(working_path, ae_config):
     training_routine=NN_Trainer(working_path, ae_config)
     training_routine.execute_training()
+    del training_routine
 
 def prepare_files(orig_project_parameters_file, dataset_path, working_path):
     """pre-pending the absolut path of the files in the Project Parameters"""
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     ae_config_list = [
    #   {
    #      "nn_type": 'conv2d_smain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-   #      "name": 'NewCode_NoForce_AugmFinetune_RandomDatabase_finetuneColab_w0.1_lam0.0_lr0.00001',
+   #      "name": 'Test_finetune_small_case_2D_smain_0.1__',
    #      "encoding_size": 1,
    #      # "hidden_layers": ((16,(3,5),(1,2)),
    #      #                   (32,(3,5),(1,2))
@@ -44,594 +45,286 @@ if __name__ == "__main__":
    #      "hidden_layers": [[16, [3, 5], [1, 2]], [32, [3, 5], [1, 2]]],
    #      "batch_size": 1,
    #      "epochs": 100,
-   #      "normalization_strategy": 'channel_range',  # ['feature_stand','channel_range', 'channel_scale', 'svd]
+   #      "normalization_strategy": 'channel_scale',  # ['svd_prenorm', 'svd', 'svd_unif', 'channel_scale']
    #      "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
    #      "orthogonal_loss_ratio": ('const', 0.0),
-   #      "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+   #      "learning_rate": ('const', 1e-5), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
    #      "dataset_path": 'datasets_rommanager/',
    #      "models_path": 'saved_models_newexample/',
-   #      "finetune_from": 'saved_models_conv2d/W0_Colab_RandomDatabase/',
+   #      "finetune_from": 'saved_models_newexample/Test_small_case_2D_smain/',
+   #    #   "finetune_from": 'saved_models_conv2d/W0_Colab_RandomDatabase/',
    #      "augmented": True,
-   #      "use_force": False,
-   #      "use_bias": True,
+   #      "pretrain": False,
+   #      "use_bias": False,
    #      "svd_tolerance": None,
    #      "project_parameters_file":'ProjectParameters_fom.json'
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay80_LRe5_svdunif',
+   # {
+   #      "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+   #      "name": 'test',
+   #      "encoding_size": 2,
+   #      # "hidden_layers": ((16,(3,5),(1,2)),
+   #      #                   (32,(3,5),(1,2))
+   #      #                   ),
+   #      "hidden_layers": (80,80),
+   #      "batch_size": 1,
+   #      "epochs": 100,
+   #      "normalization_strategy": 'channel_scale',  # ['svd_prenorm', 'svd', 'svd_unif', 'channel_scale']
+   #      "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+   #      "orthogonal_loss_ratio": ('const', 0.0),
+   #      "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+   #      "dataset_path": 'datasets_two_forces_dense/',
+   #      # "dataset_path": 'datasets_two_forces/',
+   #      "models_path": 'saved_models_newexample/',
+   #      "finetune_from": None,
+   #      "augmented": False,
+   #      "use_force": False,
+   #      "use_bias": False,
+   #      "svd_tolerance": None,
+   #      "project_parameters_file":'ProjectParameters_fom.json'
+   #   },
+#    {
+#         "nn_type": 'dense_sonly', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'test',
+#         "encoding_size": 15,
+#         "hidden_layers": [20],
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": None,
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+#    {
+#         "nn_type": 'dense_sonly', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Cont_Dense_lowforce_SOnly_emb10_lay20_LRe6_svd_white_nostand_1000ep',
+#         "encoding_size": 10,
+#         "hidden_layers": [20],
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.000001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_lowforce/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/Cont_Dense_lowforce_SOnly_emb10_lay20_LRe5_svd_white_nostand_1000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+#    {
+#         "nn_type": 'dense_sonly', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Dense_extended_SOnly_emb10_lay40_LRe4_channel_scale_1000ep',
+#         "encoding_size": 10,
+#         "hidden_layers": [40,40],
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'channel_scale',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": None,
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+# {
+#         "nn_type": 'dec_correct_correctsonly', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Cont_CorrDecoder_Dense_extended_ChanScale_emb2_LR4_test_1000ep',
+#         "encoding_size": 2,
+#         "hidden_layers": [10,100],
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'channel_scale',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/CorrDecoder_Dense_extended_ChanScale_emb2_LR3-4_test_1000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+   {
+        "nn_type": 'dec_correct_correctsonly', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+        "name": 'CorrDecoder_Dense_extended_SVDWhiteNoStand_emb2_LR3_test_1000ep',
         "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
+        "hidden_layers": [40],
         "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
+        "epochs": 1000,
+        "normalization_strategy": 'svd_range',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
         "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
         "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
+        "learning_rate": ('steps', 0.01, 10, 1e-6, 20), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+        "dataset_path": 'datasets_two_forces_dense_extended/',
         # "dataset_path": 'datasets_rommanager/',
         "models_path": 'saved_models_newexample/',
         "finetune_from": None,
         "augmented": False,
+        "pretrain": False,
         "use_force": False,
-        "use_bias": False,
+        "use_bias": True,
         "svd_tolerance": None,
         "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay80_LRe4_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay80_LRe3_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay80_LRe5_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay80_LRe4_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay80_LRe3_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay40_LRe5_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay40_LRe4_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay40_LRe3_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay40_LRe5_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay40_LRe4_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay40_LRe3_svdunif',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd_unif',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay80_LRe5_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay80_LRe4_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay80_LRe3_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay80_LRe5_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay80_LRe4_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay80_LRe3_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (80,80),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay40_LRe5_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay40_LRe4_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0_lay40_LRe3_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay40_LRe5_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay40_LRe4_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     },
-     {
-        "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
-        "name": 'Dense_RMain_w0.1_lay40_LRe3_svd',
-        "encoding_size": 2,
-        # "hidden_layers": ((16,(3,5),(1,2)),
-        #                   (32,(3,5),(1,2))
-        #                   ),
-        "hidden_layers": (40,40),
-        "batch_size": 1,
-        "epochs": 100,
-        "normalization_strategy": 'svd',  # ['feature_stand','channel_range', 'channel_scale', 'svd', 'svd_unif']
-        "residual_loss_ratio": ('const', 0.1), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
-        "orthogonal_loss_ratio": ('const', 0.0),
-        "learning_rate": ('const', 0.001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
-        "dataset_path": 'datasets_two_forces_dense/',
-        # "dataset_path": 'datasets_rommanager/',
-        "models_path": 'saved_models_newexample/',
-        "finetune_from": None,
-        "augmented": False,
-        "use_force": False,
-        "use_bias": False,
-        "svd_tolerance": None,
-        "project_parameters_file":'ProjectParameters_fom.json'
-     }    ]
+   },
+#    {
+#         "nn_type": 'dense_svdmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Cont_Dense_extended_SVDMain_emb5_lay40_LRe5_white_nostand_3000ep',
+#         "encoding_size": 5,
+#         "hidden_layers": [40,40],
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/Dense_extended_SVDMain_emb5_lay40_LRe4_white_nostand_2000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+#    {
+#         "nn_type": 'dense_svdmainmae', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Cont_Dense_extended_SVDMainMAE_emb5_lay40_LRe4_white_nostand_2000ep',
+#         "encoding_size": 5,
+#         "hidden_layers": [40,40],
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.0001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/Dense_extended_SVDMainMAE_emb5_lay40_LRe3_white_nostand_1000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+#    {
+#         "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Finetune_Dense_extended_RMain_w0.01_lay40_LRe6_origLRe6ep6000_svd_white_nostand_1000ep',
+#         "encoding_size": 2,
+#         "hidden_layers": (40,40),
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0.01), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.000001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/Cont_Dense_extended_SOnly_w0_lay40_LRe6_svd_white_nostand_6000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+#    {
+#         "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Finetune_Dense_extended_RMain_w0_lay40_LRe5_svd_white_nostand_1000ep',
+#         "encoding_size": 2,
+#         "hidden_layers": (40,40),
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/Cont_Dense_extended_SOnly_w0_lay40_LRe5_svd_white_nostand_2000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+#    {
+#         "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Finetune_Dense_extended_RMain_w1_lay40_LRe5_svd_white_nostand_1000ep',
+#         "encoding_size": 2,
+#         "hidden_layers": (40,40),
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 1.0), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/Cont_Dense_extended_SOnly_w0_lay40_LRe5_svd_white_nostand_2000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    },
+#    {
+#         "nn_type": 'dense_rmain', # ['dense_umain','conv2d_umain','dense_rmain','conv2d_rmain']
+#         "name": 'Finetune_Dense_extended_RMain_w10_lay40_LRe5_svd_white_nostand_1000ep',
+#         "encoding_size": 2,
+#         "hidden_layers": (40,40),
+#         "batch_size": 1,
+#         "epochs": 1000,
+#         "normalization_strategy": 'svd_white_nostand',  # ['svd_white', 'svd_white_nostand', 'svd_prenorm', svd_prenorm_chan, 'svd', 'svd_unif', 'channel_scale']
+#         "residual_loss_ratio": ('const', 10), # ('linear', 0.99999, 0.1, 100), ('const', 1.0), ('binary', 0.99999, 0.0, 2)
+#         "orthogonal_loss_ratio": ('const', 0.0),
+#         "learning_rate": ('const', 0.00001), # ('steps', 0.001, 10, 1e-6, 100), ('const', 0.001)
+#         "dataset_path": 'datasets_two_forces_dense_extended/',
+#         # "dataset_path": 'datasets_rommanager/',
+#         "models_path": 'saved_models_newexample/',
+#         "finetune_from": 'saved_models_newexample/Cont_Dense_extended_SOnly_w0_lay40_LRe5_svd_white_nostand_2000ep/',
+#         "augmented": False,
+#         "pretrain": False,
+#         "use_force": False,
+#         "use_bias": False,
+#         "svd_tolerance": None,
+#         "project_parameters_file":'ProjectParameters_fom.json'
+#    }
+   ]
     
     """ Notes on SVD training
     Using embedding: 2

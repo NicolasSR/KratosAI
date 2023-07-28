@@ -13,7 +13,7 @@ class SnaphotMainAEModel(keras.Model):
     def __init__(self,*args,**kwargs):
         super(SnaphotMainAEModel,self).__init__(*args,**kwargs)
         self.w=0
-        self.w_tf=0
+        self.w_tf=tf.constant(0, dtype=tf.float64)
         self.lam=0
 
         self.loss_x_tracker = keras.metrics.Mean(name="loss_x")
@@ -27,6 +27,10 @@ class SnaphotMainAEModel(keras.Model):
 
         self.sample_gradient_sum_functions_list=None
         self.generate_gradient_sum_functions()
+
+        self.total_gradients=[]
+        for i in range(len(self.trainable_variables)):
+            self.total_gradients.append(tf.Variable(tf.zeros_like(self.trainable_variables[i])))
 
     def set_config_values(self, ae_config, data_normalizer, kratos_simulation, residual_scale_factor):
         self.data_normalizer=data_normalizer
@@ -60,9 +64,8 @@ class SnaphotMainAEModel(keras.Model):
 
     def generate_gradient_sum_functions(self):
         @tf.function
-        def gradient_sum_sample(previous_gradients, gradients, batch_len):
-            updated_gradients=previous_gradients+gradients/batch_len
-            return updated_gradients
+        def gradient_sum_sample(total_gradients, gradients, batch_len):
+            total_gradients.assign(total_gradients+gradients/batch_len)
         
         self.sample_gradient_sum_functions_list=[]
         for i in range(len(self.trainable_variables)):
@@ -74,11 +77,10 @@ class SnaphotMainAEModel(keras.Model):
 
         batch_len=x_true_batch.shape[0]
 
-        tf.print(trainable_vars)
+        # tf.print(trainable_vars)
 
-        total_gradients=[]
-        for i in range(len(trainable_vars)):
-            total_gradients.append(tf.zeros_like(trainable_vars[i]))
+        for i in range(len(self.total_gradients)):
+            self.total_gradients[i].assign(tf.zeros_like(self.total_gradients[i]))
         
         total_loss_x = 0
         total_loss_r = 0
@@ -101,10 +103,10 @@ class SnaphotMainAEModel(keras.Model):
 
             grad_loss = self.get_gradients(trainable_vars, x_true, v_loss_x, v_loss_r, self.w_tf)
 
-            for i in range(len(total_gradients)):
-                total_gradients[i]=self.sample_gradient_sum_functions_list[i](total_gradients[i], grad_loss[i], batch_len)
+            for i in range(len(self.total_gradients)):
+                self.sample_gradient_sum_functions_list[i](self.total_gradients[i], grad_loss[i], batch_len)
 
-        self.optimizer.apply_gradients(zip(total_gradients, trainable_vars))
+        self.optimizer.apply_gradients(zip(self.total_gradients, trainable_vars))
 
         # Compute our own metrics
         self.loss_x_tracker.update_state(total_loss_x)
